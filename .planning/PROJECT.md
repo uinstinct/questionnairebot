@@ -18,25 +18,25 @@ routines so the user only needs to answer, not manage. Zero answer data loss acr
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Load and validate questionnaire YAML files at startup (fatal-exit on bad input) — v1.0
+- ✓ Register one cron job per questionnaire with its own IANA timezone — v1.0
+- ✓ Auto-trigger a single questionnaire at cron time and skip already-answered cycles silently — v1.0
+- ✓ When multiple questionnaires fire simultaneously, send an inline-keyboard picker — v1.0
+- ✓ `/pull` command lists pending questionnaires (auto-skipping past-due cycles first) — v1.0
+- ✓ Ask questions one at a time; accept any text as the answer; rewrite `session.yaml` after every answer — v1.0
+- ✓ On completion, prepend a `completed` entry to `answers.yaml` and delete `session.yaml` — v1.0
+- ✓ Resume an interrupted session from `current_question_index` after restart — v1.0
+- ✓ `/status` command summarises every questionnaire's state — v1.0
+- ✓ `/list` command shows every questionnaire's cron + next trigger — v1.0
+- ✓ Free-text with no active session returns help text; slash commands route to handlers — v1.0
+- ✓ Silently drop any update whose `chat.id` ≠ `TELEGRAM_CHAT_ID` — v1.0
+- ✓ Multi-stage Alpine Dockerfile (golang:1.22-alpine builder → alpine:3.19 runtime + tzdata + non-root) — v1.0
+- ✓ docker-compose.yml binds `./data` host directory and loads `.env` — v1.0
+- ✓ Integration + E2E tests using real Telegram test bot (no unit tests) — v1.0
 
 ### Active
 
-- [ ] Load and validate questionnaire YAML files at startup (AUTH-style fatal-exit on bad input)
-- [ ] Register one cron job per questionnaire with its own IANA timezone
-- [ ] Auto-trigger a single questionnaire at cron time and skip already-answered cycles silently
-- [ ] When multiple questionnaires fire simultaneously, send an inline-keyboard picker
-- [ ] `/pull` command lists pending questionnaires (auto-skipping past-due cycles first)
-- [ ] Ask questions one at a time; accept any text as the answer; rewrite `session.yaml` after every answer
-- [ ] On completion, prepend a `completed` entry to `answers.yaml` and delete `session.yaml`
-- [ ] Resume an interrupted session from `current_question_index` after restart
-- [ ] `/status` command summarises every questionnaire's state
-- [ ] `/list` command shows every questionnaire's cron + next trigger
-- [ ] Free-text with no active session returns help text; slash commands route to handlers
-- [ ] Silently drop any update whose `chat.id` ≠ `TELEGRAM_CHAT_ID`
-- [ ] Multi-stage Alpine Dockerfile (golang:1.22-alpine builder → alpine:3.19 runtime + tzdata + non-root)
-- [ ] docker-compose.yml binds `./data` host directory and loads `.env`
-- [ ] Integration + E2E tests using real Telegram test bot (no unit tests)
+(All v1.0 requirements shipped. Scope the next milestone via `/gsd:new-milestone`.)
 
 ### Out of Scope
 
@@ -100,15 +100,15 @@ Dockerfile   docker-compose.yml   .env.example   README.md
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| YAML files as sole persistence | PRD §1 explicit non-goal of DB; simpler ops, human-readable | — Pending |
-| Long-polling over webhooks | PRD non-goal; avoids public HTTPS endpoint for a single-user bot | — Pending |
-| Prepend (never rewrite) `answers.yaml` | FR-11 — preserves history under partial-write failures | — Pending |
-| Rewrite `session.yaml` after every answer | FR-12 — guarantees resumability after crash mid-session | — Pending |
-| `current_question_index == len(questions)` on restart → finalise | US-008 AC — covers crash between writing last answer and writing completed entry | — Pending |
-| Auto-skip past-due cycles on `/pull` and on cron fire | PRD §8 past-due logic — keeps `answers.yaml` history complete without `/skip` UX | — Pending |
-| Drop updates from wrong chat ID silently (no log) | US-012 — denies attacker any signal that the bot saw them | — Pending |
-| Standard granularity, 5 horizontal phases | Project structure in PRD §8 is layered (config → loader → scheduler → session → storage → handler → bot); horizontal phases match | — Pending |
-| Workflow agents disabled (research/plan-check/verifier) | Comprehensive PRD obviates research; GSD subagents not installed in this runtime | — Pending |
+| YAML files as sole persistence | PRD §1 explicit non-goal of DB; simpler ops, human-readable | ✓ Good (v1.0) |
+| Long-polling over webhooks | PRD non-goal; avoids public HTTPS endpoint for a single-user bot | ✓ Good (v1.0) |
+| Prepend (never rewrite) `answers.yaml` | FR-11 — preserves history under partial-write failures | ✓ Good (v1.0) |
+| Rewrite `session.yaml` after every answer | FR-12 — guarantees resumability after crash mid-session | ✓ Good (v1.0) |
+| `current_question_index == len(questions)` on restart → finalise | US-008 AC — covers crash between writing last answer and writing completed entry | ✓ Good (v1.0) |
+| Auto-skip past-due cycles on `/pull` and on cron fire | PRD §8 past-due logic — keeps `answers.yaml` history complete without `/skip` UX | ✓ Good (v1.0) |
+| Drop updates from wrong chat ID silently (no log) | US-012 — denies attacker any signal that the bot saw them | ✓ Good (v1.0) |
+| Standard granularity, 5 horizontal phases | Project structure in PRD §8 is layered (config → loader → scheduler → session → storage → handler → bot); horizontal phases match | ✓ Good (v1.0) |
+| Workflow agents disabled (research/plan-check/verifier) | Comprehensive PRD obviates research; GSD subagents not installed in this runtime | ✓ Good (v1.0) |
 
 ## Evolution
 
@@ -127,5 +127,21 @@ This document evolves at phase transitions and milestone boundaries.
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
+## Current State
+
+**Shipped:** v1.0 MVP (2026-05-18)
+
+- 3,054 LOC Go across 8 internal packages (`config`, `loader`, `scheduler`, `session`, `storage`, `handler`, `bot`, `commands`) + `internal/e2e` test harness + `cmd/bot/main.go`.
+- Wiring graph: `config.Load → loader.Load → session.Manager → handler.QuestionFlow → handler.Dispatcher → bot.Bot → commands.{CronBus, Pull, Status, List}` + `scheduler.Start(callback=bus.Fire)`.
+- Tests: integration suite (resume / past-due / status / malformed-yaml) green inline; E2E suite against a real Telegram test bot validated by operator on 2026-05-18.
+- Distribution: multi-stage Alpine Dockerfile (non-root `botuser`, `tzdata`+`ca-certificates`) + docker-compose with `./data` bind mount; human-validated `docker build` + `docker compose up -d` on a real host.
+
+**Known tech debt:** none recorded.
+**Open deferred items:** 1 metadata-only quick-task mismatch (see STATE.md `## Deferred Items`).
+
+## Next Milestone Goals
+
+To be defined via `/gsd:new-milestone`.
+
 ---
-*Last updated: 2026-05-18 after initialization*
+*Last updated: 2026-05-18 after v1.0 milestone*
