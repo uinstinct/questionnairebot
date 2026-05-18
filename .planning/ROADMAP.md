@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation — Config, Loader, Scheduler init** - Boot the process: load `.env`, discover and validate questionnaires, register cron jobs (no triggering yet) (completed 2026-05-18)
 - [x] **Phase 2: Storage & Session State** - Persistent `answers.yaml` prepend + `session.yaml` read/write/delete with mutex-protected access (completed 2026-05-18)
-- [ ] **Phase 3: Bot Core & Question Flow** - Telegram long-polling, chat-ID auth, command routing, question/answer cycle, session resume, free-text fallback
+- [x] **Phase 3: Bot Core & Question Flow** - Telegram long-polling, chat-ID auth, command routing, question/answer cycle, session resume, free-text fallback (completed 2026-05-18)
 - [ ] **Phase 4: Cron Triggers & Commands** - Wire cron fires into the bot (auto-trigger, simultaneous picker, past-due skip) and ship `/pull`, `/status`, `/list`
 - [ ] **Phase 5: Docker & Integration/E2E Tests** - Multi-stage Alpine Dockerfile, docker-compose, README, and the full integration + E2E suite
 
@@ -68,9 +68,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: `internal/bot` polling loop + dispatcher + chat-ID auth middleware (BOT-01/02)
-- [ ] 03-02: `internal/handler` — question/answer state machine (send question with optional italic example, accept text, advance index, persist after each answer, finalise) (BOT-03..07)
-- [ ] 03-03: Startup-time session restore (BOT-08/09) + free-text fallback help message + slash-command router stubs for `/pull`/`/status`/`/list` (BOT-10)
+- [x] 03-01: `internal/bot` polling loop + dispatcher + chat-ID auth middleware (BOT-01/02)
+- [x] 03-02: `internal/handler` — question/answer state machine (send question with optional italic example, accept text, advance index, persist after each answer, finalise) (BOT-03..07)
+- [x] 03-03: Startup-time session restore (BOT-08/09) + free-text fallback help message + slash-command router stubs for `/pull`/`/status`/`/list` (BOT-10)
 
 ### Phase 4: Cron Triggers & Commands
 **Goal**: Replace stubbed cron callbacks and command handlers with real implementations. A cron fire either starts the session, sends a multi-pick picker, or silently no-ops if the cycle is already completed. `/pull` runs the past-due skip algorithm and presents only the next-upcoming pending questionnaires. `/status` and `/list` produce the formatted summaries.
@@ -114,6 +114,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation — Config, Loader, Scheduler init | 3/3 | Complete   | 2026-05-18 |
 | 2. Storage & Session State | 2/2 | Complete   | 2026-05-18 |
-| 3. Bot Core & Question Flow | 0/3 | Not started | - |
+| 3. Bot Core & Question Flow | 3/3 | Complete   | 2026-05-18 |
 | 4. Cron Triggers & Commands | 0/3 | Not started | - |
 | 5. Docker & Integration/E2E Tests | 0/3 | Not started | - |
