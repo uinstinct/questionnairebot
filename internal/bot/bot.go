@@ -17,6 +17,14 @@ import (
 type Sender interface {
 	Send(text string) error
 	SendMarkdown(text string) error
+	SendPicker(text string, options []PickerOption) error
+	AckCallback(callbackID string) error
+}
+
+// PickerOption renders one inline-keyboard button on a picker message.
+type PickerOption struct {
+	Label        string
+	CallbackData string
 }
 
 // Dispatcher receives every authorised update.
@@ -70,5 +78,26 @@ func (b *Bot) SendMarkdown(text string) error {
 	msg := tgbotapi.NewMessage(b.ChatID, text)
 	msg.ParseMode = tgbotapi.ModeMarkdown
 	_, err := b.API.Send(msg)
+	return err
+}
+
+func (b *Bot) SendPicker(text string, options []PickerOption) error {
+	if len(options) == 0 {
+		return b.Send(text)
+	}
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(options))
+	for _, opt := range options {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(opt.Label, opt.CallbackData),
+		))
+	}
+	msg := tgbotapi.NewMessage(b.ChatID, text)
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+	_, err := b.API.Send(msg)
+	return err
+}
+
+func (b *Bot) AckCallback(callbackID string) error {
+	_, err := b.API.Request(tgbotapi.NewCallback(callbackID, ""))
 	return err
 }

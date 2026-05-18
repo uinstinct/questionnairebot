@@ -8,6 +8,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
+	"github.com/aditya-mitra/questionnairebot/internal/bot"
 	"github.com/aditya-mitra/questionnairebot/internal/loader"
 	"github.com/aditya-mitra/questionnairebot/internal/session"
 )
@@ -78,6 +79,75 @@ func TestDispatcherFreeTextNoSession(t *testing.T) {
 	d.Handle(context.Background(), sender, freeTextUpdate("hello"))
 	if len(sender.msgs) != 1 || sender.msgs[0] != HelpText {
 		t.Fatalf("msgs = %v", sender.msgs)
+	}
+}
+
+type fakeCommands struct {
+	pullCalled    bool
+	pullErr       error
+	statusText    string
+	listText      string
+	cbData        string
+	cbErr         error
+}
+
+func (f *fakeCommands) HandlePull(sender bot.Sender) error {
+	f.pullCalled = true
+	if f.pullErr != nil {
+		return f.pullErr
+	}
+	return sender.Send("pull ok")
+}
+func (f *fakeCommands) RenderStatus() string                                { return f.statusText }
+func (f *fakeCommands) RenderList() string                                  { return f.listText }
+func (f *fakeCommands) HandleStartCallback(sender bot.Sender, data string) error {
+	f.cbData = data
+	if f.cbErr != nil {
+		return f.cbErr
+	}
+	return sender.Send("cb ok: " + data)
+}
+
+func TestDispatcherPullRoutes(t *testing.T) {
+	sender := &recordingSender{}
+	flow, _ := newFlow(t, sender, nil)
+	d := NewDispatcher(flow)
+	fakes := &fakeCommands{}
+	d.Attach(fakes)
+	d.Handle(context.Background(), sender, cmdUpdate("/pull"))
+	if !fakes.pullCalled {
+		t.Fatalf("HandlePull not called")
+	}
+	if len(sender.msgs) != 1 || sender.msgs[0] != "pull ok" {
+		t.Errorf("msgs = %v", sender.msgs)
+	}
+}
+
+func TestDispatcherStatusList(t *testing.T) {
+	sender := &recordingSender{}
+	flow, _ := newFlow(t, sender, nil)
+	d := NewDispatcher(flow)
+	d.Attach(&fakeCommands{statusText: "📊 Status: ok", listText: "📋 Questionnaires: ok"})
+	d.Handle(context.Background(), sender, cmdUpdate("/status"))
+	d.Handle(context.Background(), sender, cmdUpdate("/list"))
+	if len(sender.msgs) != 2 || !strings.Contains(sender.msgs[0], "📊 Status") || !strings.Contains(sender.msgs[1], "📋 Questionnaires") {
+		t.Fatalf("msgs = %v", sender.msgs)
+	}
+}
+
+func TestDispatcherCallbackStart(t *testing.T) {
+	sender := &recordingSender{}
+	flow, _ := newFlow(t, sender, nil)
+	d := NewDispatcher(flow)
+	fakes := &fakeCommands{}
+	d.Attach(fakes)
+	cb := &tgbotapi.CallbackQuery{ID: "cb1", Data: "start:daily:2026-05-19T09:00:00Z"}
+	d.Handle(context.Background(), sender, tgbotapi.Update{CallbackQuery: cb})
+	if fakes.cbData != "start:daily:2026-05-19T09:00:00Z" {
+		t.Errorf("cbData = %q", fakes.cbData)
+	}
+	if len(sender.acks) != 1 || sender.acks[0] != "cb1" {
+		t.Errorf("acks = %v", sender.acks)
 	}
 }
 

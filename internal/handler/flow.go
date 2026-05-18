@@ -8,15 +8,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aditya-mitra/questionnairebot/internal/bot"
 	"github.com/aditya-mitra/questionnairebot/internal/loader"
 	"github.com/aditya-mitra/questionnairebot/internal/session"
 	"github.com/aditya-mitra/questionnairebot/internal/storage"
 )
 
-type Sender interface {
-	Send(text string) error
-	SendMarkdown(text string) error
-}
+// Sender is an alias for bot.Sender — kept here as a stable name for code
+// that already uses handler.Sender.
+type Sender = bot.Sender
 
 type QuestionFlow struct {
 	Sender         Sender

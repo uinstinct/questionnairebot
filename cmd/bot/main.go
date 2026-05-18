@@ -7,8 +7,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/aditya-mitra/questionnairebot/internal/bot"
+	"github.com/aditya-mitra/questionnairebot/internal/commands"
 	"github.com/aditya-mitra/questionnairebot/internal/config"
 	"github.com/aditya-mitra/questionnairebot/internal/handler"
 	"github.com/aditya-mitra/questionnairebot/internal/loader"
@@ -45,10 +47,15 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	cronHandler := func(slug string) {
-		log.Printf("cron fire (stub): %s", slug)
-	}
-	sched, err := scheduler.New(questionnaires, cronHandler)
+	bus := commands.NewCronBus(flow, b, time.Now)
+	go bus.Run(ctx)
+
+	pull := commands.NewPull(flow, time.Now)
+	status := commands.NewStatus(cfg.DataDir, sessions, flow.Questionnaires, time.Now)
+	list := commands.NewList(flow.Questionnaires, time.Now)
+	disp.Attach(commands.NewAdapter(pull, status, list))
+
+	sched, err := scheduler.New(questionnaires, func(slug string) { bus.Fire(slug, time.Now()) })
 	if err != nil {
 		fatal(err)
 	}

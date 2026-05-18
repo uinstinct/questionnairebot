@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -11,15 +12,36 @@ import (
 
 const HelpText = "Send /pull to start a questionnaire now, /status for state, or /list to see schedules."
 
+// CommandHandler abstracts the per-slash-command handlers so the dispatcher
+// avoids importing internal/commands directly (which already depends on
+// handler, so a back-import would create a cycle).
+type CommandHandler interface {
+	HandlePull(sender bot.Sender) error
+	RenderStatus() string
+	RenderList() string
+	HandleStartCallback(sender bot.Sender, data string) error
+}
+
 type Dispatcher struct {
-	Flow *QuestionFlow
+	Flow     *QuestionFlow
+	Commands CommandHandler
 }
 
 func NewDispatcher(flow *QuestionFlow) *Dispatcher {
 	return &Dispatcher{Flow: flow}
 }
 
+// Attach is called from main.go after the commands wiring is built. Optional —
+// dispatchers without commands attached still handle text and slash-stubs.
+func (d *Dispatcher) Attach(cmds CommandHandler) {
+	d.Commands = cmds
+}
+
 func (d *Dispatcher) Handle(ctx context.Context, sender bot.Sender, update tgbotapi.Update) {
+	if update.CallbackQuery != nil {
+		d.handleCallback(sender, update.CallbackQuery)
+		return
+	}
 	if update.Message == nil {
 		return
 	}
@@ -30,12 +52,47 @@ func (d *Dispatcher) Handle(ctx context.Context, sender bot.Sender, update tgbot
 	d.handleFreeText(sender, update.Message.Text)
 }
 
+func (d *Dispatcher) handleCallback(sender bot.Sender, cb *tgbotapi.CallbackQuery) {
+	if err := sender.AckCallback(cb.ID); err != nil {
+		log.Printf("handler: ack callback: %v", err)
+	}
+	if !strings.HasPrefix(cb.Data, "start:") {
+		send(sender, "❌ Invalid selection.")
+		return
+	}
+	if d.Commands == nil {
+		send(sender, "❌ Invalid selection.")
+		return
+	}
+	if err := d.Commands.HandleStartCallback(sender, cb.Data); err != nil {
+		log.Printf("handler: callback start: %v", err)
+	}
+}
+
 func (d *Dispatcher) handleCommand(sender bot.Sender, cmd string) {
 	switch cmd {
 	case "start", "help":
 		send(sender, HelpText)
-	case "pull", "status", "list":
-		send(sender, "Phase 4 will implement /"+cmd+".")
+	case "pull":
+		if d.Commands == nil {
+			send(sender, "Phase 4 will implement /pull.")
+			return
+		}
+		if err := d.Commands.HandlePull(sender); err != nil {
+			log.Printf("handler: /pull: %v", err)
+		}
+	case "status":
+		if d.Commands == nil {
+			send(sender, "Phase 4 will implement /status.")
+			return
+		}
+		send(sender, d.Commands.RenderStatus())
+	case "list":
+		if d.Commands == nil {
+			send(sender, "Phase 4 will implement /list.")
+			return
+		}
+		send(sender, d.Commands.RenderList())
 	default:
 		send(sender, "Unknown command.")
 	}

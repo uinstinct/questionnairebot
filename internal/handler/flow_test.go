@@ -10,6 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/aditya-mitra/questionnairebot/internal/bot"
 	"github.com/aditya-mitra/questionnairebot/internal/loader"
 	"github.com/aditya-mitra/questionnairebot/internal/session"
 	"github.com/aditya-mitra/questionnairebot/internal/storage"
@@ -19,6 +20,13 @@ type recordingSender struct {
 	mu       sync.Mutex
 	msgs     []string
 	markdown []string
+	pickers  []pickerCall
+	acks     []string
+}
+
+type pickerCall struct {
+	Text    string
+	Options []bot.PickerOption
 }
 
 func (r *recordingSender) Send(text string) error {
@@ -32,6 +40,20 @@ func (r *recordingSender) SendMarkdown(text string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.markdown = append(r.markdown, text)
+	return nil
+}
+
+func (r *recordingSender) SendPicker(text string, options []bot.PickerOption) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.pickers = append(r.pickers, pickerCall{Text: text, Options: append([]bot.PickerOption(nil), options...)})
+	return nil
+}
+
+func (r *recordingSender) AckCallback(callbackID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.acks = append(r.acks, callbackID)
 	return nil
 }
 
