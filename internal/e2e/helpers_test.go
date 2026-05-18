@@ -11,6 +11,7 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -39,19 +40,64 @@ func requireTestEnv(t *testing.T) (string, int64) {
 	return token, chatID
 }
 
+// e2eSender wraps the real bot for actual Telegram sends and simultaneously
+// records every outgoing message to a buffered channel. This lets probeClient
+// observe bot output without a second getUpdates connection, which would
+// 409-conflict with the bot's own long-poll.
+type e2eSender struct {
+	real *bot.Bot
+	out  chan tgbotapi.Message
+}
+
+func (s *e2eSender) Send(text string) error {
+	s.out <- tgbotapi.Message{Text: text, From: &tgbotapi.User{IsBot: true}}
+	return s.real.Send(text)
+}
+
+func (s *e2eSender) SendMarkdown(text string) error {
+	s.out <- tgbotapi.Message{Text: text, From: &tgbotapi.User{IsBot: true}}
+	return s.real.SendMarkdown(text)
+}
+
+func (s *e2eSender) SendPicker(text string, options []bot.PickerOption) error {
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(options))
+	for _, opt := range options {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(opt.Label, opt.CallbackData),
+		))
+	}
+	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
+	s.out <- tgbotapi.Message{Text: text, From: &tgbotapi.User{IsBot: true}, ReplyMarkup: &kb}
+	return s.real.SendPicker(text, options)
+}
+
+func (s *e2eSender) AckCallback(callbackID string) error {
+	return s.real.AckCallback(callbackID)
+}
+
+func (s *e2eSender) logUserAction(text string) {
+	_ = s.real.Send("👤 " + text)
+}
+
 // botRig is the in-process bot under test: same wiring as cmd/bot/main.go.
 type botRig struct {
-	t         *testing.T
-	bot       *bot.Bot
-	bus       *commands.CronBus
-	flow      *handler.QuestionFlow
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
+	t      *testing.T
+	chatID int64
+	disp   *handler.Dispatcher
+	sender *e2eSender
+	bus    *commands.CronBus
+	out    chan tgbotapi.Message
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // newBotUnderTest builds the same component graph as cmd/bot/main.go against
 // dataDir + (token, chatID). Returns the rig and a teardown function the test
 // MUST defer.
+//
+// b.Run (the getUpdates long-poll goroutine) is intentionally NOT started.
+// User messages are injected in-process via probeClient.send, so there is
+// no second-poller 409 Conflict on the shared bot token.
 func newBotUnderTest(t *testing.T, dataDir string, token string, chatID int64) (*botRig, func()) {
 	t.Helper()
 	qs, err := loader.Load(dataDir)
@@ -63,27 +109,28 @@ func newBotUnderTest(t *testing.T, dataDir string, token string, chatID int64) (
 
 	b, err := bot.New(token, chatID, disp)
 	require.NoError(t, err, "bot.New")
-	flow.Sender = b
+
+	out := make(chan tgbotapi.Message, 32)
+	sender := &e2eSender{real: b, out: out}
+	flow.Sender = sender
 
 	require.NoError(t, handler.Restore(flow))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	bus := commands.NewCronBus(flow, b, time.Now)
+	bus := commands.NewCronBus(flow, sender, time.Now)
 
 	pull := commands.NewPull(flow, time.Now)
 	status := commands.NewStatus(dataDir, sessions, flow.Questionnaires, time.Now)
 	list := commands.NewList(flow.Questionnaires, time.Now)
 	disp.Attach(commands.NewAdapter(pull, status, list))
 
-	rig := &botRig{t: t, bot: b, bus: bus, flow: flow, cancel: cancel}
+	rig := &botRig{t: t, chatID: chatID, disp: disp, sender: sender, bus: bus, out: out, cancel: cancel}
 
-	rig.wg.Add(2)
+	rig.wg.Add(1)
 	go func() { defer rig.wg.Done(); bus.Run(ctx) }()
-	go func() { defer rig.wg.Done(); b.Run(ctx) }()
 
 	teardown := func() {
 		cancel()
-		// Give the polling goroutines a beat to exit cleanly.
 		done := make(chan struct{})
 		go func() { rig.wg.Wait(); close(done) }()
 		select {
@@ -95,54 +142,61 @@ func newBotUnderTest(t *testing.T, dataDir string, token string, chatID int64) (
 	return rig, teardown
 }
 
-// probeClient is the "test user side" — a second telegram-bot-api client that
-// reads what the bot under test sent and writes inputs back via sendMessage.
+// inject dispatches a synthetic Telegram update (slash command or free-text)
+// directly into the dispatcher, bypassing Telegram's transport layer entirely.
+func (r *botRig) inject(text string) {
+	r.sender.logUserAction(text)
+	chat := &tgbotapi.Chat{ID: r.chatID}
+	var update tgbotapi.Update
+	if strings.HasPrefix(text, "/") {
+		cmd := strings.SplitN(text, " ", 2)[0]
+		update = tgbotapi.Update{Message: &tgbotapi.Message{
+			Chat: chat,
+			Text: text,
+			Entities: []tgbotapi.MessageEntity{
+				{Type: "bot_command", Offset: 0, Length: len(cmd)},
+			},
+		}}
+	} else {
+		update = tgbotapi.Update{Message: &tgbotapi.Message{Chat: chat, Text: text}}
+	}
+	r.disp.Handle(context.Background(), r.sender, update)
+}
+
+// probeClient is the test-side observer. It reads outgoing bot messages from
+// the recording channel and injects user messages directly into the dispatcher.
+// No getUpdates polling is performed — there is no second-poller conflict.
 type probeClient struct {
-	api    *tgbotapi.BotAPI
-	chatID int64
-	offset int
-	mu     sync.Mutex
-	log    []tgbotapi.Message
+	rig *botRig
+	mu  sync.Mutex
+	log []tgbotapi.Message
 }
 
-func newProbeClient(t *testing.T, token string, chatID int64) *probeClient {
+func newProbeClient(t *testing.T, rig *botRig) *probeClient {
 	t.Helper()
-	api, err := tgbotapi.NewBotAPI(token)
-	require.NoError(t, err, "probe NewBotAPI")
-	return &probeClient{api: api, chatID: chatID}
+	return &probeClient{rig: rig}
 }
 
-// waitForMessage polls getUpdates until predicate returns true for a message in
-// the configured chat, or timeout elapses. Returns the matching message.
+// waitForMessage drains the outgoing channel until predicate returns true or
+// timeout elapses. Non-matching messages are buffered in log for diagnostics.
 func (p *probeClient) waitForMessage(t *testing.T, timeout time.Duration, predicate func(tgbotapi.Message) bool) tgbotapi.Message {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		u := tgbotapi.NewUpdate(p.offset)
-		u.Timeout = 1
-		updates, err := p.api.GetUpdates(u)
-		if err != nil {
-			t.Logf("probe getUpdates: %v", err)
-			time.Sleep(500 * time.Millisecond)
-			continue
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
 		}
-		for _, up := range updates {
-			p.offset = up.UpdateID + 1
-			if up.Message == nil {
-				continue
+		select {
+		case msg := <-p.rig.out:
+			p.mu.Lock()
+			p.log = append(p.log, msg)
+			p.mu.Unlock()
+			if predicate(msg) {
+				return msg
 			}
-			if up.Message.Chat == nil || up.Message.Chat.ID != p.chatID {
-				continue
-			}
-			// Only look at messages FROM the bot (not echoes of our own probe sends).
-			if up.Message.From != nil && up.Message.From.IsBot {
-				p.mu.Lock()
-				p.log = append(p.log, *up.Message)
-				p.mu.Unlock()
-				if predicate(*up.Message) {
-					return *up.Message
-				}
-			}
+		case <-time.After(remaining):
+			// deadline reached
 		}
 	}
 	p.mu.Lock()
@@ -151,29 +205,17 @@ func (p *probeClient) waitForMessage(t *testing.T, timeout time.Duration, predic
 	return tgbotapi.Message{}
 }
 
-// send dispatches a free-text reply from the probe (test-user side) to the bot.
+// send injects a free-text or slash-command message from the simulated user.
 func (p *probeClient) send(t *testing.T, text string) {
 	t.Helper()
-	msg := tgbotapi.NewMessage(p.chatID, text)
-	_, err := p.api.Send(msg)
-	require.NoError(t, err, "probe.send")
+	p.rig.inject(text)
 }
 
-// sendCallback simulates tapping an inline-keyboard button by issuing the
-// callback data through the Telegram answerCallbackQuery flow. Because the
-// probe is itself a bot account, the only viable approximation in pure test
-// code is to send the callback data as a plain message and rely on the bot's
-// /pull callback handling — but the bot's dispatcher only routes
-// CallbackQuery updates for inline keyboards. For end-to-end button-tap
-// behavior, run the test interactively or extend the probe to use a user
-// account (not implemented here — surfaced as a known limitation).
+// sendCallback injects callback data as a free-text message (best-effort
+// approximation — inline-keyboard taps require a user account, not a bot token).
 func (p *probeClient) sendCallback(t *testing.T, data string) {
 	t.Helper()
-	// Best-effort: send the slug parsed out of the callback data as a free-text
-	// message. The bot will treat it as an answer if a session is active; the
-	// dual-pending test uses the cron-fire path instead of /pull to validate
-	// picker contents.
-	p.send(t, data)
+	p.rig.inject(data)
 }
 
 func lastN[T any](s []T, n int) []T {
