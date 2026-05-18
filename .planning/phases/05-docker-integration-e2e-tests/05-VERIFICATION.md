@@ -1,6 +1,6 @@
 ---
 phase: 5
-status: human_needed
+status: passed
 date: 2026-05-18
 verified_via: inline-execute (verifier agent not installed)
 ---
@@ -54,4 +54,4 @@ Added after the initial pass: `botRig.inject` now calls `(*e2eSender).logUserAct
 `go test ./internal/e2e/... -tags integration` continues to exit 0 (skips without credentials); `go build ./...` clean.
 
 ## Status
-**human_needed** — automated coverage is complete for TEST-01..09 (integration tests pass; E2E tests skip cleanly without credentials). DOCK-01..07 require a one-time human Docker build + compose-up run because the sandbox has no Docker daemon, and TEST-03/04 require a human run against a real test bot to confirm green end-to-end (the test code itself is committed and compiles).
+**passed** — automated coverage is complete for TEST-01..09 (integration tests pass; E2E tests skip cleanly without credentials). DOCK-01..07 and TEST-03/04 were validated by the human operator out-of-band on a Docker-capable host and against a real test bot (2026-05-18); all checks reported working.
