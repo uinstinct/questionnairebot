@@ -12,7 +12,7 @@ Five horizontal phases build the bot bottom-up: foundation (config + YAML loader
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation — Config, Loader, Scheduler init** - Boot the process: load `.env`, discover and validate questionnaires, register cron jobs (no triggering yet)
+- [x] **Phase 1: Foundation — Config, Loader, Scheduler init** - Boot the process: load `.env`, discover and validate questionnaires, register cron jobs (no triggering yet) (completed 2026-05-18)
 - [ ] **Phase 2: Storage & Session State** - Persistent `answers.yaml` prepend + `session.yaml` read/write/delete with mutex-protected access
 - [ ] **Phase 3: Bot Core & Question Flow** - Telegram long-polling, chat-ID auth, command routing, question/answer cycle, session resume, free-text fallback
 - [ ] **Phase 4: Cron Triggers & Commands** - Wire cron fires into the bot (auto-trigger, simultaneous picker, past-due skip) and ship `/pull`, `/status`, `/list`
@@ -33,13 +33,13 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 **Wave 1**
-- [ ] 01-01: `cmd/bot/main.go` skeleton + `internal/config` `.env` loader and env-var validation (CFG-01)
+- [x] 01-01: `cmd/bot/main.go` skeleton + `internal/config` `.env` loader and env-var validation (CFG-01)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 01-02: `internal/loader` — directory scan + YAML parsing + schema/cron/IANA validation + fatal-exit error messages (LOAD-01..04)
+- [x] 01-02: `internal/loader` — directory scan + YAML parsing + schema/cron/IANA validation + fatal-exit error messages (LOAD-01..04)
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 01-03: `internal/scheduler` — register one `cron/v3` job per questionnaire with `time.LoadLocation`, log next-trigger lines, wire stub callback (SCHED-01/02)
+- [x] 01-03: `internal/scheduler` — register one `cron/v3` job per questionnaire with `time.LoadLocation`, log next-trigger lines, wire stub callback (SCHED-01/02)
 
 ### Phase 2: Storage & Session State
 **Goal**: A reusable storage layer that prepends entries to `answers.yaml` (never rewriting), and a session layer that reads/writes/deletes `session.yaml` atomically with mutex-protected concurrent access. Both layers are exercisable in isolation.
@@ -112,7 +112,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation — Config, Loader, Scheduler init | 0/3 | Not started | - |
+| 1. Foundation — Config, Loader, Scheduler init | 3/3 | Complete   | 2026-05-18 |
 | 2. Storage & Session State | 0/2 | Not started | - |
 | 3. Bot Core & Question Flow | 0/3 | Not started | - |
 | 4. Cron Triggers & Commands | 0/3 | Not started | - |
