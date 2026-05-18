@@ -1,0 +1,14 @@
+- status: completed
+  scheduled_for: "2026-05-17T09:00:00+05:30"
+  completed_at:  "2026-05-17T09:15:32+05:30"
+  answers:
+    - question: "What did you work on yesterday?"
+      answer:   "Finished the auth module"
+    - question: "What are you working on today?"
+      answer:   "Working on the cron scheduler"
+    - question: "Any blockers?"
+      answer:   "None"
+
+- status: skipped
+  scheduled_for: "2026-05-16T09:00:00+05:30"
+  skipped_at:    "2026-05-17T09:00:00+05:30"

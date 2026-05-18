@@ -1,0 +1,9 @@
+name: "Daily Standup"
+schedule: "0 9 * * *"
+timezone: "Asia/Kolkata"
+questions:
+  - question: "What did you work on yesterday?"
+    example: "Finished the authentication module"
+  - question: "What are you working on today?"
+  - question: "Any blockers?"
+    example: "Waiting on API credentials from the team"
