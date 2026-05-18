@@ -32,8 +32,13 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
+**Wave 1**
 - [ ] 01-01: `cmd/bot/main.go` skeleton + `internal/config` `.env` loader and env-var validation (CFG-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 01-02: `internal/loader` — directory scan + YAML parsing + schema/cron/IANA validation + fatal-exit error messages (LOAD-01..04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 01-03: `internal/scheduler` — register one `cron/v3` job per questionnaire with `time.LoadLocation`, log next-trigger lines, wire stub callback (SCHED-01/02)
 
 ### Phase 2: Storage & Session State
