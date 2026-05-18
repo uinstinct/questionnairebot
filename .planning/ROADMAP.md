@@ -101,7 +101,10 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
+**Wave 1**
 - [ ] 05-01: Multi-stage `Dockerfile` (golang:1.22-alpine builder → alpine:3.19 runtime + `apk add ca-certificates tzdata` + non-root `botuser`) + `docker-compose.yml` + `.env.example` (DOCK-01..07)
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 05-02: Integration tests — session-resume, past-due skip via `/pull`, `/status` output, malformed-yaml fatal exit (TEST-05/06/07/08)
 - [ ] 05-03: E2E tests against real test bot — full happy-path completion and dual-pending `/pull` picker flow; `README.md` "Running Tests" section (TEST-01/02/03/04/09)
 
