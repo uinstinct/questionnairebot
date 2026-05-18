@@ -64,7 +64,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- GSD subagents (`gsd-planner`, `gsd-executor`, etc.) are not installed in this runtime. Running `/gsd:plan-phase` or `/gsd:autonomous` will fail with "agent type not found" until the user runs `npx get-shit-done-cc@latest --global`.
+None.
 
 ### Quick Tasks Completed
 
