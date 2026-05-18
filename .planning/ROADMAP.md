@@ -13,7 +13,7 @@ Five horizontal phases build the bot bottom-up: foundation (config + YAML loader
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation — Config, Loader, Scheduler init** - Boot the process: load `.env`, discover and validate questionnaires, register cron jobs (no triggering yet) (completed 2026-05-18)
-- [ ] **Phase 2: Storage & Session State** - Persistent `answers.yaml` prepend + `session.yaml` read/write/delete with mutex-protected access
+- [x] **Phase 2: Storage & Session State** - Persistent `answers.yaml` prepend + `session.yaml` read/write/delete with mutex-protected access (completed 2026-05-18)
 - [ ] **Phase 3: Bot Core & Question Flow** - Telegram long-polling, chat-ID auth, command routing, question/answer cycle, session resume, free-text fallback
 - [ ] **Phase 4: Cron Triggers & Commands** - Wire cron fires into the bot (auto-trigger, simultaneous picker, past-due skip) and ship `/pull`, `/status`, `/list`
 - [ ] **Phase 5: Docker & Integration/E2E Tests** - Multi-stage Alpine Dockerfile, docker-compose, README, and the full integration + E2E suite
@@ -53,8 +53,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: `internal/storage` — prepend-only `answers.yaml` writer (atomic rename via tempfile), completed/skipped entry builders (STOR-01..03)
-- [ ] 02-02: `internal/session` — `Save`/`Load`/`Delete` for `session.yaml` with `sync.Mutex`-protected in-memory active-session registry (SESS-01..03)
+- [x] 02-01: `internal/storage` — prepend-only `answers.yaml` writer (atomic rename via tempfile), completed/skipped entry builders (STOR-01..03)
+- [x] 02-02: `internal/session` — `Save`/`Load`/`Delete` for `session.yaml` with `sync.Mutex`-protected in-memory active-session registry (SESS-01..03)
 
 ### Phase 3: Bot Core & Question Flow
 **Goal**: Telegram long-polling loop runs, drops unauthorised chats silently, routes slash commands vs free text, conducts the one-question-at-a-time flow with example italics, persists progress after every answer, finalises sessions, and resumes correctly after restart. Commands `/pull`/`/status`/`/list` are stubbed (Phase 4 implements them); cron callbacks remain stubbed.
@@ -113,7 +113,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation — Config, Loader, Scheduler init | 3/3 | Complete   | 2026-05-18 |
-| 2. Storage & Session State | 0/2 | Not started | - |
+| 2. Storage & Session State | 2/2 | Complete   | 2026-05-18 |
 | 3. Bot Core & Question Flow | 0/3 | Not started | - |
 | 4. Cron Triggers & Commands | 0/3 | Not started | - |
 | 5. Docker & Integration/E2E Tests | 0/3 | Not started | - |
