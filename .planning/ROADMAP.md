@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation — Config, Loader, Scheduler init** - Boot the process: load `.env`, discover and validate questionnaires, register cron jobs (no triggering yet) (completed 2026-05-18)
 - [x] **Phase 2: Storage & Session State** - Persistent `answers.yaml` prepend + `session.yaml` read/write/delete with mutex-protected access (completed 2026-05-18)
 - [x] **Phase 3: Bot Core & Question Flow** - Telegram long-polling, chat-ID auth, command routing, question/answer cycle, session resume, free-text fallback (completed 2026-05-18)
-- [ ] **Phase 4: Cron Triggers & Commands** - Wire cron fires into the bot (auto-trigger, simultaneous picker, past-due skip) and ship `/pull`, `/status`, `/list`
+- [x] **Phase 4: Cron Triggers & Commands** - Wire cron fires into the bot (auto-trigger, simultaneous picker, past-due skip) and ship `/pull`, `/status`, `/list` (completed 2026-05-18)
 - [ ] **Phase 5: Docker & Integration/E2E Tests** - Multi-stage Alpine Dockerfile, docker-compose, README, and the full integration + E2E suite
 
 ## Phase Details
@@ -85,9 +85,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: Cron callback implementation — single-fire auto-trigger + already-completed silent skip + multi-fire 1s-window picker grouping (SCHED-03..06)
-- [ ] 04-02: `/pull` — past-due skip algorithm, pending-list computation, picker / active-session / nothing-pending replies, callback-query handling (CMD-01..05, FR-7/8)
-- [ ] 04-03: `/status` and `/list` formatters (CMD-06/07)
+- [x] 04-01: Cron callback implementation — single-fire auto-trigger + already-completed silent skip + multi-fire 1s-window picker grouping (SCHED-03..06)
+- [x] 04-02: `/pull` — past-due skip algorithm, pending-list computation, picker / active-session / nothing-pending replies, callback-query handling (CMD-01..05, FR-7/8)
+- [x] 04-03: `/status` and `/list` formatters (CMD-06/07)
 
 ### Phase 5: Docker & Integration/E2E Tests
 **Goal**: Project is deployable via `docker compose up -d` on a fresh VPS and the full integration + E2E test suite passes against a real Telegram test bot. README documents env-var requirements.
@@ -115,5 +115,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation — Config, Loader, Scheduler init | 3/3 | Complete   | 2026-05-18 |
 | 2. Storage & Session State | 2/2 | Complete   | 2026-05-18 |
 | 3. Bot Core & Question Flow | 3/3 | Complete   | 2026-05-18 |
-| 4. Cron Triggers & Commands | 0/3 | Not started | - |
+| 4. Cron Triggers & Commands | 3/3 | Complete   | 2026-05-18 |
 | 5. Docker & Integration/E2E Tests | 0/3 | Not started | - |
