@@ -1,0 +1,11 @@
+.git
+.gitignore
+.claude
+.planning
+.env
+.env.local
+data
+*.md
+Dockerfile
+docker-compose.yml
+**/*_test.go
