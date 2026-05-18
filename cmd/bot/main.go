@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/aditya-mitra/questionnairebot/internal/config"
+	"github.com/aditya-mitra/questionnairebot/internal/loader"
 )
 
 func main() {
@@ -19,6 +20,13 @@ func main() {
 	}
 
 	log.Printf("Loaded configuration: chat_id=%d data_dir=%s", cfg.ChatID, cfg.DataDir)
+
+	questionnaires, err := loader.Load(cfg.DataDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FATAL: %s\n", err)
+		os.Exit(1)
+	}
+	_ = questionnaires
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
