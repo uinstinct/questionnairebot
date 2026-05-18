@@ -41,7 +41,7 @@ func TestE2EPullPickerWithTwoPending(t *testing.T) {
 	rig, teardown := newBotUnderTest(t, dir, token, chatID)
 	defer teardown()
 
-	probe := newProbeClient(t, token, chatID)
+	probe := newProbeClient(t, rig)
 
 	// First /pull: picker should list both QA and QB.
 	probe.send(t, "/pull")

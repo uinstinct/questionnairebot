@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Storage & Session State** - Persistent `answers.yaml` prepend + `session.yaml` read/write/delete with mutex-protected access (completed 2026-05-18)
 - [x] **Phase 3: Bot Core & Question Flow** - Telegram long-polling, chat-ID auth, command routing, question/answer cycle, session resume, free-text fallback (completed 2026-05-18)
 - [x] **Phase 4: Cron Triggers & Commands** - Wire cron fires into the bot (auto-trigger, simultaneous picker, past-due skip) and ship `/pull`, `/status`, `/list` (completed 2026-05-18)
-- [ ] **Phase 5: Docker & Integration/E2E Tests** - Multi-stage Alpine Dockerfile, docker-compose, README, and the full integration + E2E suite
+- [x] **Phase 5: Docker & Integration/E2E Tests** - Multi-stage Alpine Dockerfile, docker-compose, README, and the full integration + E2E suite (completed 2026-05-18)
 
 ## Phase Details
 
@@ -98,15 +98,18 @@ Plans:
   2. `docker compose up -d` starts the bot in under 30s and `./data` on the host is the mount source for `/app/data`.
   3. `go test ./... -tags integration` passes end-to-end against `TEST_TELEGRAM_BOT_TOKEN`/`TEST_TELEGRAM_CHAT_ID`, covering all eight scenarios in TEST-03 through TEST-08.
   4. `README.md` has a "Running Tests" section listing required env vars.
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 **Wave 1**
-- [ ] 05-01: Multi-stage `Dockerfile` (golang:1.22-alpine builder → alpine:3.19 runtime + `apk add ca-certificates tzdata` + non-root `botuser`) + `docker-compose.yml` + `.env.example` (DOCK-01..07)
+- [x] 05-01: Multi-stage `Dockerfile` (golang:1.22-alpine builder → alpine:3.19 runtime + `apk add ca-certificates tzdata` + non-root `botuser`) + `docker-compose.yml` + `.env.example` (DOCK-01..07)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 05-02: Integration tests — session-resume, past-due skip via `/pull`, `/status` output, malformed-yaml fatal exit (TEST-05/06/07/08)
-- [ ] 05-03: E2E tests against real test bot — full happy-path completion and dual-pending `/pull` picker flow; `README.md` "Running Tests" section (TEST-01/02/03/04/09)
+- [x] 05-02: Integration tests — session-resume, past-due skip via `/pull`, `/status` output, malformed-yaml fatal exit (TEST-05/06/07/08)
+- [x] 05-03: E2E tests against real test bot — full happy-path completion and dual-pending `/pull` picker flow; `README.md` "Running Tests" section (TEST-01/02/03/04/09)
+
+**Wave 3** *(test ergonomics refinement)*
+- [x] 05-04: E2E user-action mirroring — `👤 <text>` mirror messages so the real Telegram chat shows both sides of an E2E run (no new requirements)
 
 ## Progress
 
@@ -119,4 +122,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Storage & Session State | 2/2 | Complete   | 2026-05-18 |
 | 3. Bot Core & Question Flow | 3/3 | Complete   | 2026-05-18 |
 | 4. Cron Triggers & Commands | 3/3 | Complete   | 2026-05-18 |
-| 5. Docker & Integration/E2E Tests | 0/3 | Not started | - |
+| 5. Docker & Integration/E2E Tests | 4/4 | Complete   | 2026-05-18 |

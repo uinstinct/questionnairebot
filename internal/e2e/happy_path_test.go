@@ -36,7 +36,7 @@ func TestE2EHappyPath(t *testing.T) {
 	rig, teardown := newBotUnderTest(t, dir, token, chatID)
 	defer teardown()
 
-	probe := newProbeClient(t, token, chatID)
+	probe := newProbeClient(t, rig)
 
 	rig.bus.Fire(slug, time.Date(2026, 5, 18, 9, 0, 0, 0, time.UTC))
 

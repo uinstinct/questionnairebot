@@ -47,5 +47,11 @@ ok  internal/session   (cached)
 ok  internal/storage   (cached)
 ```
 
+## Plan 05-04 — E2E User-Action Mirroring (Test Ergonomics)
+
+Added after the initial pass: `botRig.inject` now calls `(*e2eSender).logUserAction("👤 " + text)` before dispatching the synthetic update, so an observer watching the real Telegram chat during an E2E run sees both sides of the conversation (user mirror + bot reply). No new requirements are introduced — this is a readability refinement on top of TEST-03/TEST-04.
+
+`go test ./internal/e2e/... -tags integration` continues to exit 0 (skips without credentials); `go build ./...` clean.
+
 ## Status
 **human_needed** — automated coverage is complete for TEST-01..09 (integration tests pass; E2E tests skip cleanly without credentials). DOCK-01..07 require a one-time human Docker build + compose-up run because the sandbox has no Docker daemon, and TEST-03/04 require a human run against a real test bot to confirm green end-to-end (the test code itself is committed and compiles).
