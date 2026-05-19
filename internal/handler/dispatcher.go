@@ -42,7 +42,7 @@ func (d *Dispatcher) Attach(cmds CommandHandler) {
 }
 
 // Handle routes one Telegram update — callback, slash-command, or free text.
-func (d *Dispatcher) Handle(ctx context.Context, sender bot.Sender, update tgbotapi.Update) {
+func (d *Dispatcher) Handle(_ context.Context, sender bot.Sender, update tgbotapi.Update) {
 	if update.CallbackQuery != nil {
 		d.handleCallback(sender, update.CallbackQuery)
 		return
