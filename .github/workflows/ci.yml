@@ -45,4 +45,7 @@ jobs:
           version: v2.12
 
       - name: Test
+        env:
+          TEST_TELEGRAM_BOT_TOKEN: ${{ secrets.TEST_TELEGRAM_BOT_TOKEN }}
+          TEST_TELEGRAM_CHAT_ID: ${{ secrets.TEST_TELEGRAM_CHAT_ID }}
         run: go test -race -count=1 ./...
