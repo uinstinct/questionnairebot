@@ -7,12 +7,35 @@
   "workflow": {
     "research": false,
     "plan_check": false,
-    "verifier": false,
+    "verifier": true,
     "nyquist_validation": true,
     "auto_advance": true,
-    "_auto_chain_active": true
+    "_auto_chain_active": true,
+    "tdd_mode": true,
+    "code_review": true,
+    "code_review_depth": "standard",
+    "ui_review": false,
+    "pattern_mapper": true,
+    "ui_phase": false,
+    "ui_safety_gate": false,
+    "ai_integration_phase": true,
+    "skip_discuss": true,
+    "use_worktrees": true,
+    "research_before_questions": true
   },
   "ship": {
     "pr_body_sections": []
+  },
+  "git": {
+    "branching_strategy": "none"
+  },
+  "hooks": {
+    "context_warnings": true
+  },
+  "intel": {
+    "enabled": true
+  },
+  "graphify": {
+    "enabled": true
   }
 }
