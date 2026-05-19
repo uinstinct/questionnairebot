@@ -33,7 +33,7 @@ func TestE2EHappyPath(t *testing.T) {
 		"  - question: Anything else?\n"+
 		"    example: A detail\n"), 0o644))
 
-	rig, teardown := newBotUnderTest(t, dir, token, chatID)
+	rig, teardown := newBotUnderTest(t, dir, token, chatID, nil)
 	defer teardown()
 
 	probe := newProbeClient(t, rig)

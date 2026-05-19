@@ -38,7 +38,11 @@ func TestE2EPullPickerWithTwoPending(t *testing.T) {
 	writeQ("qa", "QA")
 	writeQ("qb", "QB")
 
-	rig, teardown := newBotUnderTest(t, dir, token, chatID)
+	// Pin clock to the day before the cron fire date so that NextTrigger(clock)
+	// returns exactly 2026-05-18T09:00Z — matching QA's scheduled_for after
+	// completion — and ApplyPastDueSkips adds no additional skips for QA.
+	fixedClock := func() time.Time { return time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC) }
+	rig, teardown := newBotUnderTest(t, dir, token, chatID, fixedClock)
 	defer teardown()
 
 	probe := newProbeClient(t, rig)
