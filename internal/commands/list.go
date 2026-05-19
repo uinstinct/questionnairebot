@@ -7,11 +7,13 @@ import (
 	"github.com/aditya-mitra/questionnairebot/internal/loader"
 )
 
+// List renders the /list slash-command response.
 type List struct {
 	Questionnaires map[string]*loader.Questionnaire
 	Clock          func() time.Time
 }
 
+// NewList constructs a List handler over the given questionnaires.
 func NewList(qs map[string]*loader.Questionnaire, clock func() time.Time) *List {
 	if clock == nil {
 		clock = time.Now
@@ -19,6 +21,7 @@ func NewList(qs map[string]*loader.Questionnaire, clock func() time.Time) *List 
 	return &List{Questionnaires: qs, Clock: clock}
 }
 
+// Render returns the /list message body.
 func (l *List) Render() string {
 	slugs := sortedSlugs(l.Questionnaires)
 	var b strings.Builder

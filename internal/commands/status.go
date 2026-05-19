@@ -10,6 +10,7 @@ import (
 	"github.com/aditya-mitra/questionnairebot/internal/storage"
 )
 
+// Status renders the /status slash-command response.
 type Status struct {
 	DataDir        string
 	Sessions       *session.Manager
@@ -17,6 +18,7 @@ type Status struct {
 	Clock          func() time.Time
 }
 
+// NewStatus constructs a Status handler over the given questionnaires.
 func NewStatus(dataDir string, sessions *session.Manager, qs map[string]*loader.Questionnaire, clock func() time.Time) *Status {
 	if clock == nil {
 		clock = time.Now
@@ -24,6 +26,7 @@ func NewStatus(dataDir string, sessions *session.Manager, qs map[string]*loader.
 	return &Status{DataDir: dataDir, Sessions: sessions, Questionnaires: qs, Clock: clock}
 }
 
+// Render returns the /status message body.
 func (s *Status) Render() string {
 	slugs := sortedSlugs(s.Questionnaires)
 	var b strings.Builder

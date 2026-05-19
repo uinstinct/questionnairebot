@@ -1,3 +1,4 @@
+// Package loader reads questionnaire YAML definitions from the data directory.
 package loader
 
 import (
@@ -14,6 +15,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Load scans dataDir for subdirectories containing a questionnaire.yaml,
+// validates each, and returns them sorted by slug.
 func Load(dataDir string) ([]*Questionnaire, error) {
 	entries, err := os.ReadDir(dataDir)
 	if err != nil {

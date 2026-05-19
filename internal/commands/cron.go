@@ -17,6 +17,9 @@ type PickerSender = bot.Sender
 // PickerOption is re-exported from bot to give command code a stable name.
 type PickerOption = bot.PickerOption
 
+// CronBus debounces cron fire events and routes them to either an immediate
+// session-start (single questionnaire due) or a picker prompt (multiple due
+// within the debounce window).
 type CronBus struct {
 	Flow         *handler.QuestionFlow
 	PickerSender PickerSender
@@ -31,6 +34,7 @@ type fireEvent struct {
 	when time.Time
 }
 
+// NewCronBus constructs a CronBus with a 1-second debounce window.
 func NewCronBus(flow *handler.QuestionFlow, picker PickerSender, clock func() time.Time) *CronBus {
 	if clock == nil {
 		clock = time.Now
@@ -44,6 +48,8 @@ func NewCronBus(flow *handler.QuestionFlow, picker PickerSender, clock func() ti
 	}
 }
 
+// Fire enqueues a cron tick for the given slug. Non-blocking; drops the event
+// (with a log line) if the buffer is full.
 func (b *CronBus) Fire(slug string, when time.Time) {
 	select {
 	case b.fires <- fireEvent{slug: slug, when: when}:
@@ -52,6 +58,8 @@ func (b *CronBus) Fire(slug string, when time.Time) {
 	}
 }
 
+// Run blocks on fire events until ctx is cancelled, flushing the debounce
+// buffer after each window expires.
 func (b *CronBus) Run(ctx context.Context) {
 	var pending []fireEvent
 	var timer *time.Timer

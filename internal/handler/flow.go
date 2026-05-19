@@ -18,6 +18,8 @@ import (
 // that already uses handler.Sender.
 type Sender = bot.Sender
 
+// QuestionFlow drives the question/answer state machine for one user, backed
+// by an in-memory session manager and on-disk answer storage.
 type QuestionFlow struct {
 	Sender         Sender
 	Sessions       *session.Manager
@@ -26,6 +28,7 @@ type QuestionFlow struct {
 	Now            func() time.Time
 }
 
+// New constructs a QuestionFlow over the given questionnaires.
 func New(sender Sender, sessions *session.Manager, dataDir string, qs []*loader.Questionnaire) *QuestionFlow {
 	m := make(map[string]*loader.Questionnaire, len(qs))
 	for _, q := range qs {
@@ -40,6 +43,7 @@ func New(sender Sender, sessions *session.Manager, dataDir string, qs []*loader.
 	}
 }
 
+// StartQuestionnaire opens a new session for slug and sends the first question.
 func (f *QuestionFlow) StartQuestionnaire(slug string, scheduled time.Time) error {
 	q, ok := f.Questionnaires[slug]
 	if !ok {
@@ -51,6 +55,7 @@ func (f *QuestionFlow) StartQuestionnaire(slug string, scheduled time.Time) erro
 	return f.SendQuestion(slug, 0)
 }
 
+// SendQuestion delivers the idx-th question of slug to the user.
 func (f *QuestionFlow) SendQuestion(slug string, idx int) error {
 	q, ok := f.Questionnaires[slug]
 	if !ok {
@@ -66,6 +71,8 @@ func (f *QuestionFlow) SendQuestion(slug string, idx int) error {
 	return f.Sender.SendMarkdown(item.Question + "\n_Example: " + item.Example + "_")
 }
 
+// HandleAnswer records the user's reply to the current question and either
+// sends the next question or finalises the session.
 func (f *QuestionFlow) HandleAnswer(slug, text string) error {
 	q, ok := f.Questionnaires[slug]
 	if !ok {
@@ -89,6 +96,8 @@ func (f *QuestionFlow) HandleAnswer(slug, text string) error {
 	return f.finalize(slug, s, q)
 }
 
+// FinalizeIfDone finalises the slug session if all questions are answered.
+// Returns whether finalisation ran.
 func (f *QuestionFlow) FinalizeIfDone(slug string) (bool, error) {
 	q, ok := f.Questionnaires[slug]
 	if !ok {
@@ -111,7 +120,7 @@ func (f *QuestionFlow) finalize(slug string, s *session.Session, q *loader.Quest
 	}
 	pairs := make([]storage.AnswerPair, len(s.Answers))
 	for i, a := range s.Answers {
-		pairs[i] = storage.AnswerPair{Question: a.Question, Answer: a.Answer}
+		pairs[i] = storage.AnswerPair(a)
 	}
 	if err := storage.PrependCompleted(f.DataDir, slug, scheduled, f.Now(), q.Location, pairs); err != nil {
 		return fmt.Errorf("handler: prepend completed: %w", err)

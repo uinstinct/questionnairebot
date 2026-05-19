@@ -18,6 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// PrependCompleted writes a "completed" entry to the head of data/<slug>/answers.yaml.
 func PrependCompleted(dataDir, slug string, scheduled, completed time.Time, loc *time.Location, answers []AnswerPair) error {
 	if loc == nil {
 		return errors.New("storage: loc is required")
@@ -31,6 +32,7 @@ func PrependCompleted(dataDir, slug string, scheduled, completed time.Time, loc 
 	return prepend(answersPath(dataDir, slug), entry)
 }
 
+// PrependSkipped writes a "skipped" entry to the head of data/<slug>/answers.yaml.
 func PrependSkipped(dataDir, slug string, scheduled, skipped time.Time, loc *time.Location) error {
 	if loc == nil {
 		return errors.New("storage: loc is required")
@@ -43,6 +45,8 @@ func PrependSkipped(dataDir, slug string, scheduled, skipped time.Time, loc *tim
 	return prepend(answersPath(dataDir, slug), entry)
 }
 
+// LastEntry returns the most recent entry from data/<slug>/answers.yaml,
+// or nil if the file does not yet exist or contains no entries.
 func LastEntry(dataDir, slug string) (*Entry, error) {
 	raw, err := os.ReadFile(answersPath(dataDir, slug))
 	if err != nil {
@@ -87,28 +91,28 @@ func prepend(path string, e Entry) error {
 		return fmt.Errorf("open %s: %w", tmp, err)
 	}
 	if _, err := f.Write(encoded); err != nil {
-		f.Close()
-		os.Remove(tmp)
+		_ = f.Close()
+		_ = os.Remove(tmp)
 		return fmt.Errorf("write tmp: %w", err)
 	}
 	if len(existing) > 0 {
 		if _, err := f.Write(existing); err != nil {
-			f.Close()
-			os.Remove(tmp)
+			_ = f.Close()
+			_ = os.Remove(tmp)
 			return fmt.Errorf("write tmp: %w", err)
 		}
 	}
 	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tmp)
+		_ = f.Close()
+		_ = os.Remove(tmp)
 		return fmt.Errorf("fsync tmp: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return fmt.Errorf("close tmp: %w", err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return fmt.Errorf("rename %s -> %s: %w", tmp, path, err)
 	}
 	return nil

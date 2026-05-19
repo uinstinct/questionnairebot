@@ -11,6 +11,7 @@ import (
 	"github.com/aditya-mitra/questionnairebot/internal/storage"
 )
 
+// User-facing message strings emitted by the /pull command.
 const (
 	ReplyActiveSession = "⚠️ You have an active session in progress. Please finish it first."
 	ReplyAllUpToDate   = "✅ All questionnaires are up to date. Nothing to answer right now."
@@ -18,11 +19,14 @@ const (
 	ReplyBadCallback   = "❌ Invalid selection."
 )
 
+// Pull handles the /pull slash-command: surface pending questionnaires for the
+// user to start manually.
 type Pull struct {
 	Flow  *handler.QuestionFlow
 	Clock func() time.Time
 }
 
+// NewPull constructs a Pull handler bound to the given flow.
 func NewPull(flow *handler.QuestionFlow, clock func() time.Time) *Pull {
 	if clock == nil {
 		clock = time.Now
@@ -30,6 +34,8 @@ func NewPull(flow *handler.QuestionFlow, clock func() time.Time) *Pull {
 	return &Pull{Flow: flow, Clock: clock}
 }
 
+// Handle processes a /pull command — applies past-due skips, then either
+// starts the single pending questionnaire or sends a picker.
 func (p *Pull) Handle(sender bot.Sender) error {
 	// Active-session check: any session active anywhere → block /pull.
 	for slug := range p.Flow.Questionnaires {
@@ -85,6 +91,7 @@ func (p *Pull) Handle(sender bot.Sender) error {
 	return sender.SendPicker(PickerPrompt, opts)
 }
 
+// HandleCallback processes an inline-keyboard "start:<slug>:<rfc3339>" callback.
 func (p *Pull) HandleCallback(sender bot.Sender, data string) error {
 	parts := strings.SplitN(data, ":", 3)
 	if len(parts) != 3 || parts[0] != "start" {

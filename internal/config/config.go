@@ -1,3 +1,5 @@
+// Package config loads runtime configuration from environment variables
+// (optionally seeded from a .env file in the working directory).
 package config
 
 import (
@@ -10,12 +12,15 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Config holds the resolved runtime configuration.
 type Config struct {
 	BotToken string
 	ChatID   int64
 	DataDir  string
 }
 
+// Load reads configuration from the environment (and an optional .env file),
+// validating that required values are present and that DATA_DIR is a directory.
 func Load() (*Config, error) {
 	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		if _, statErr := os.Stat(".env"); statErr == nil {

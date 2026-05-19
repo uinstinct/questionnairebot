@@ -32,12 +32,14 @@ type Dispatcher interface {
 	Handle(ctx context.Context, sender Sender, update tgbotapi.Update)
 }
 
+// Bot is the Telegram long-polling client wrapper.
 type Bot struct {
 	API        *tgbotapi.BotAPI
 	ChatID     int64
 	dispatcher Dispatcher
 }
 
+// New constructs a Bot bound to the given token, chat ID, and dispatcher.
 func New(token string, chatID int64, dispatcher Dispatcher) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
@@ -46,6 +48,7 @@ func New(token string, chatID int64, dispatcher Dispatcher) (*Bot, error) {
 	return &Bot{API: api, ChatID: chatID, dispatcher: dispatcher}, nil
 }
 
+// Run blocks on the Telegram updates channel until ctx is cancelled.
 func (b *Bot) Run(ctx context.Context) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 30
@@ -68,12 +71,14 @@ func (b *Bot) Run(ctx context.Context) {
 	}
 }
 
+// Send delivers a plain-text message to the configured chat.
 func (b *Bot) Send(text string) error {
 	msg := tgbotapi.NewMessage(b.ChatID, text)
 	_, err := b.API.Send(msg)
 	return err
 }
 
+// SendMarkdown delivers a Markdown-formatted message to the configured chat.
 func (b *Bot) SendMarkdown(text string) error {
 	msg := tgbotapi.NewMessage(b.ChatID, text)
 	msg.ParseMode = tgbotapi.ModeMarkdown
@@ -81,6 +86,8 @@ func (b *Bot) SendMarkdown(text string) error {
 	return err
 }
 
+// SendPicker delivers a message with an inline-keyboard picker; falls back to
+// a plain Send when no options are provided.
 func (b *Bot) SendPicker(text string, options []PickerOption) error {
 	if len(options) == 0 {
 		return b.Send(text)
@@ -97,6 +104,8 @@ func (b *Bot) SendPicker(text string, options []PickerOption) error {
 	return err
 }
 
+// AckCallback acknowledges an inline-keyboard callback so Telegram clears the
+// loading state on the user's button.
 func (b *Bot) AckCallback(callbackID string) error {
 	_, err := b.API.Request(tgbotapi.NewCallback(callbackID, ""))
 	return err

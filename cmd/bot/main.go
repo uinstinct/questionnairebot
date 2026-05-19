@@ -1,3 +1,4 @@
+// Command bot runs the Telegram questionnaire bot binary.
 package main
 
 import (

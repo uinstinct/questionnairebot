@@ -16,12 +16,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Manager owns the in-memory map of active sessions, persisting each change to
+// disk under a single mutex.
 type Manager struct {
 	mu       sync.Mutex
 	sessions map[string]*Session
 	dataDir  string
 }
 
+// NewManager constructs a Manager rooted at dataDir.
 func NewManager(dataDir string) *Manager {
 	return &Manager{
 		sessions: make(map[string]*Session),
@@ -29,6 +32,7 @@ func NewManager(dataDir string) *Manager {
 	}
 }
 
+// Start creates a new session for slug, persists it, and returns a copy.
 func (m *Manager) Start(slug string, scheduled, started time.Time, loc *time.Location) (*Session, error) {
 	if loc == nil {
 		return nil, errors.New("session: loc is required")
@@ -49,6 +53,7 @@ func (m *Manager) Start(slug string, scheduled, started time.Time, loc *time.Loc
 	return cloneSession(s), nil
 }
 
+// Get returns a copy of the active session for slug, or nil if none exists.
 func (m *Manager) Get(slug string) *Session {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -59,6 +64,7 @@ func (m *Manager) Get(slug string) *Session {
 	return cloneSession(s)
 }
 
+// RecordAnswer appends an answer to the active session for slug and persists.
 func (m *Manager) RecordAnswer(slug, question, answer string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -71,6 +77,7 @@ func (m *Manager) RecordAnswer(slug, question, answer string) error {
 	return m.saveLocked(slug)
 }
 
+// Delete removes the active session for slug from memory and disk.
 func (m *Manager) Delete(slug string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -81,6 +88,8 @@ func (m *Manager) Delete(slug string) error {
 	return nil
 }
 
+// LoadFromDisk rehydrates a persisted session for slug into the manager.
+// Returns nil if no session file exists.
 func (m *Manager) LoadFromDisk(slug string) (*Session, error) {
 	raw, err := os.ReadFile(sessionPath(m.dataDir, slug))
 	if err != nil {
@@ -118,21 +127,21 @@ func (m *Manager) saveLocked(slug string) error {
 		return fmt.Errorf("open %s: %w", tmp, err)
 	}
 	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(tmp)
+		_ = f.Close()
+		_ = os.Remove(tmp)
 		return fmt.Errorf("write tmp: %w", err)
 	}
 	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tmp)
+		_ = f.Close()
+		_ = os.Remove(tmp)
 		return fmt.Errorf("fsync tmp: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return fmt.Errorf("close tmp: %w", err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return fmt.Errorf("rename: %w", err)
 	}
 	return nil

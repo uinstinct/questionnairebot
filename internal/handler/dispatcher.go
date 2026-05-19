@@ -10,6 +10,7 @@ import (
 	"github.com/aditya-mitra/questionnairebot/internal/bot"
 )
 
+// HelpText is the default response for /start, /help, and unrecognised input.
 const HelpText = "Send /pull to start a questionnaire now, /status for state, or /list to see schedules."
 
 // CommandHandler abstracts the per-slash-command handlers so the dispatcher
@@ -22,11 +23,14 @@ type CommandHandler interface {
 	HandleStartCallback(sender bot.Sender, data string) error
 }
 
+// Dispatcher routes Telegram updates to slash-command handlers or the
+// question-flow free-text handler.
 type Dispatcher struct {
 	Flow     *QuestionFlow
 	Commands CommandHandler
 }
 
+// NewDispatcher constructs a Dispatcher with no commands attached.
 func NewDispatcher(flow *QuestionFlow) *Dispatcher {
 	return &Dispatcher{Flow: flow}
 }
@@ -37,6 +41,7 @@ func (d *Dispatcher) Attach(cmds CommandHandler) {
 	d.Commands = cmds
 }
 
+// Handle routes one Telegram update — callback, slash-command, or free text.
 func (d *Dispatcher) Handle(ctx context.Context, sender bot.Sender, update tgbotapi.Update) {
 	if update.CallbackQuery != nil {
 		d.handleCallback(sender, update.CallbackQuery)

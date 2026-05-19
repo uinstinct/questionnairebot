@@ -1,3 +1,5 @@
+// Package scheduler drives per-questionnaire cron timers, invoking a Handler
+// for each fire.
 package scheduler
 
 import (
@@ -11,6 +13,7 @@ import (
 	"github.com/aditya-mitra/questionnairebot/internal/loader"
 )
 
+// Handler is invoked on each cron tick with the slug of the due questionnaire.
 type Handler func(slug string)
 
 type entry struct {
@@ -19,10 +22,12 @@ type entry struct {
 	id   cron.EntryID
 }
 
+// Scheduler owns one cron instance per questionnaire.
 type Scheduler struct {
 	entries []entry
 }
 
+// New builds a Scheduler with a cron entry for each questionnaire.
 func New(qs []*loader.Questionnaire, h Handler) (*Scheduler, error) {
 	s := &Scheduler{}
 	for _, q := range qs {
@@ -37,6 +42,7 @@ func New(qs []*loader.Questionnaire, h Handler) (*Scheduler, error) {
 	return s, nil
 }
 
+// Start launches all cron timers and stops them when ctx is cancelled.
 func (s *Scheduler) Start(ctx context.Context) {
 	for _, e := range s.entries {
 		e.cron.Start()
@@ -49,6 +55,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	}()
 }
 
+// Stop halts all cron timers.
 func (s *Scheduler) Stop() {
 	for _, e := range s.entries {
 		e.cron.Stop()
