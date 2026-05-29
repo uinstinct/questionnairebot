@@ -62,6 +62,10 @@ func main() {
 	}
 	sched.Start(ctx)
 
+	if err := b.RegisterCommands(commands.Commands()); err != nil {
+		log.Printf("WARN: failed to register bot commands: %v", err)
+	}
+
 	go b.Run(ctx)
 
 	<-ctx.Done()
