@@ -110,3 +110,12 @@ func (b *Bot) AckCallback(callbackID string) error {
 	_, err := b.API.Request(tgbotapi.NewCallback(callbackID, ""))
 	return err
 }
+
+// RegisterCommands registers the provided slash commands with Telegram via
+// setMyCommands. The method is generic — it takes the command list as a
+// parameter and does not define or filter the list itself. The caller is
+// responsible for providing the desired command catalog.
+func (b *Bot) RegisterCommands(cmds []tgbotapi.BotCommand) error {
+	_, err := b.API.Request(tgbotapi.NewSetMyCommands(cmds...))
+	return err
+}
