@@ -2,8 +2,9 @@ package storage
 
 // AnswerPair is one (question, answer) tuple within an answers.yaml entry.
 type AnswerPair struct {
-	Question string `yaml:"question"`
-	Answer   string `yaml:"answer"`
+	Question  string `yaml:"question"`
+	Answer    string `yaml:"answer"`
+	MessageID int    `yaml:"message_id,omitempty"`
 }
 
 // Entry is a single record in data/<slug>/answers.yaml.
