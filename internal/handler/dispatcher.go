@@ -47,6 +47,10 @@ func (d *Dispatcher) Handle(_ context.Context, sender bot.Sender, update tgbotap
 		d.handleCallback(sender, update.CallbackQuery)
 		return
 	}
+	if update.EditedMessage != nil {
+		d.handleEditedMessage(sender, update.EditedMessage)
+		return
+	}
 	if update.Message == nil {
 		return
 	}
@@ -55,6 +59,17 @@ func (d *Dispatcher) Handle(_ context.Context, sender bot.Sender, update tgbotap
 		return
 	}
 	d.handleFreeText(sender, update.Message.Text, update.Message.MessageID)
+}
+
+func (d *Dispatcher) handleEditedMessage(sender bot.Sender, msg *tgbotapi.Message) {
+	// Caption/media edits carry Caption (not Text); edited commands are not
+	// answers. Ignore both so neither can trigger an answer rewrite.
+	if msg.Text == "" || msg.IsCommand() {
+		return
+	}
+	if err := d.Flow.HandleEditedAnswer(msg.MessageID, msg.Text); err != nil {
+		log.Printf("handler: HandleEditedAnswer(%d): %v", msg.MessageID, err)
+	}
 }
 
 func (d *Dispatcher) handleCallback(sender bot.Sender, cb *tgbotapi.CallbackQuery) {

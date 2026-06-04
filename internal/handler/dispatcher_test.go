@@ -38,6 +38,22 @@ func freeTextUpdate(text string) tgbotapi.Update {
 	return tgbotapi.Update{Message: &tgbotapi.Message{MessageID: 1, Chat: chat, Text: text}}
 }
 
+func editedTextUpdate(text string, id int) tgbotapi.Update {
+	chat := &tgbotapi.Chat{ID: 1}
+	return tgbotapi.Update{EditedMessage: &tgbotapi.Message{MessageID: id, Chat: chat, Text: text}}
+}
+
+func editedCmdUpdate(text string, id int) tgbotapi.Update {
+	chat := &tgbotapi.Chat{ID: 1}
+	msg := &tgbotapi.Message{
+		MessageID: id,
+		Chat:      chat,
+		Text:      text,
+		Entities:  []tgbotapi.MessageEntity{{Type: "bot_command", Offset: 0, Length: len(strings.Split(text, " ")[0])}},
+	}
+	return tgbotapi.Update{EditedMessage: msg}
+}
+
 func TestDispatcherSlashHelp(t *testing.T) {
 	sender := &recordingSender{}
 	flow, _ := newFlow(t, sender, nil)
@@ -168,5 +184,91 @@ func TestDispatcherFreeTextActiveSession(t *testing.T) {
 	// After the answer, the single-question questionnaire finalises.
 	if len(sender.msgs) != 2 || !strings.Contains(sender.msgs[1], "✅ X complete!") {
 		t.Fatalf("after answer = %v", sender.msgs)
+	}
+}
+
+func startWithAnswer(t *testing.T, flow *QuestionFlow, slug string, id int) {
+	t.Helper()
+	t0 := flow.Now()
+	if _, err := flow.Sessions.Start(slug, t0, t0, time.UTC); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := flow.Sessions.RecordAnswer(slug, "Q1?", "A1", id); err != nil {
+		t.Fatalf("RecordAnswer: %v", err)
+	}
+}
+
+func editQ(t *testing.T) []*loader.Questionnaire {
+	t.Helper()
+	return []*loader.Questionnaire{{
+		Slug: "x", Name: "X", Location: time.UTC,
+		Questions: []loader.Question{{Question: "Q1?"}, {Question: "Q2?"}},
+	}}
+}
+
+func TestDispatcherEditRoutesAndUpdates(t *testing.T) {
+	sender := &recordingSender{}
+	flow, _ := newFlow(t, sender, editQ(t))
+	d := NewDispatcher(flow)
+	startWithAnswer(t, flow, "x", 42)
+
+	d.Handle(context.Background(), sender, editedTextUpdate("edited", 42))
+
+	if got := flow.Sessions.Get("x"); got.Answers[0].Answer != "edited" {
+		t.Fatalf("answer = %q, want edited", got.Answers[0].Answer)
+	}
+	if len(sender.msgs) == 0 || !strings.Contains(sender.msgs[len(sender.msgs)-1], "Updated") {
+		t.Errorf("msgs = %v, want success reply", sender.msgs)
+	}
+}
+
+func TestDispatcherEditCaptionIgnored(t *testing.T) {
+	sender := &recordingSender{}
+	flow, _ := newFlow(t, sender, editQ(t))
+	d := NewDispatcher(flow)
+	startWithAnswer(t, flow, "x", 42)
+
+	// Caption/media edit: EditedMessage.Text == "".
+	d.Handle(context.Background(), sender, editedTextUpdate("", 5))
+
+	if got := flow.Sessions.Get("x"); got.Answers[0].Answer != "A1" {
+		t.Errorf("caption edit changed answer to %q", got.Answers[0].Answer)
+	}
+	if len(sender.msgs) != 0 {
+		t.Errorf("caption edit produced replies: %v", sender.msgs)
+	}
+}
+
+func TestDispatcherEditCommandIgnored(t *testing.T) {
+	sender := &recordingSender{}
+	flow, _ := newFlow(t, sender, editQ(t))
+	d := NewDispatcher(flow)
+	// id 42 matches the recorded answer, so only the IsCommand guard prevents a rewrite.
+	startWithAnswer(t, flow, "x", 42)
+
+	d.Handle(context.Background(), sender, editedCmdUpdate("/pull", 42))
+
+	if got := flow.Sessions.Get("x"); got.Answers[0].Answer != "A1" {
+		t.Errorf("edited command changed answer to %q", got.Answers[0].Answer)
+	}
+	if len(sender.msgs) != 0 {
+		t.Errorf("edited command produced replies: %v", sender.msgs)
+	}
+}
+
+func TestDispatcherEditSafetyGateReply(t *testing.T) {
+	sender := &recordingSender{}
+	flow, _ := newFlow(t, sender, editQ(t))
+	d := NewDispatcher(flow)
+	// Last answer carries a real id, so an unmatched edit is gated (no rewrite).
+	startWithAnswer(t, flow, "x", 42)
+
+	d.Handle(context.Background(), sender, editedTextUpdate("orphan edit", 9999))
+
+	if got := flow.Sessions.Get("x"); got.Answers[0].Answer != "A1" {
+		t.Errorf("safety gate failed: answer = %q, want A1", got.Answers[0].Answer)
+	}
+	if len(sender.msgs) == 0 || !strings.Contains(sender.msgs[len(sender.msgs)-1], "match") {
+		t.Errorf("msgs = %v, want couldn't-match reply", sender.msgs)
 	}
 }

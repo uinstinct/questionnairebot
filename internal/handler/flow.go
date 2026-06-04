@@ -113,6 +113,101 @@ func (f *QuestionFlow) FinalizeIfDone(slug string) (bool, error) {
 	return true, f.finalize(slug, s, q)
 }
 
+// Reply copy for edit reflection. Tests assert on the stable substrings
+// "Updated" (success) and "match" (miss), not the exact bytes.
+const (
+	editUpdatedMsg = "✏️ Updated your answer."
+	editMissMsg    = "❓ Couldn't match that edit to a saved answer — no changes made."
+)
+
+// HandleEditedAnswer reflects an edit of the user's previously-sent answer
+// (matched by Telegram message id) back into the stored answer. It searches, in
+// order: every active session, then every questionnaire's answers.yaml. Failing
+// an id match it applies the LOCKED fallback — rewrite the most-recent answer
+// ONLY when it is legacy data (message_id == 0) — and otherwise tells the user
+// the edit couldn't be matched.
+func (f *QuestionFlow) HandleEditedAnswer(messageID int, newText string) error {
+	// 1. An active session owns the answer.
+	var active []string
+	for slug := range f.Questionnaires {
+		if f.Sessions.Get(slug) == nil {
+			continue
+		}
+		active = append(active, slug)
+		matched, err := f.Sessions.UpdateAnswerByMessageID(slug, messageID, newText)
+		if err != nil {
+			return err
+		}
+		if matched {
+			return f.Sender.Send(editUpdatedMsg)
+		}
+	}
+	// 2. A completed answers.yaml entry owns the answer.
+	for slug := range f.Questionnaires {
+		matched, err := storage.UpdateAnswerByMessageID(f.DataDir, slug, messageID, newText)
+		if err != nil {
+			return err
+		}
+		if matched {
+			return f.Sender.Send(editUpdatedMsg)
+		}
+	}
+	// 3. LOCKED fallback. Rewrite the most-recent answer ONLY if it is legacy
+	//    (message_id == 0); the UpdateLastAnswer helpers enforce that gate.
+	if len(active) == 1 {
+		matched, err := f.Sessions.UpdateLastAnswer(active[0], newText)
+		if err != nil {
+			return err
+		}
+		if matched {
+			return f.Sender.Send(editUpdatedMsg)
+		}
+	} else if slug, err := f.newestCompletedSlug(); err != nil {
+		return err
+	} else if slug != "" {
+		matched, err := storage.UpdateLastAnswer(f.DataDir, slug, newText)
+		if err != nil {
+			return err
+		}
+		if matched {
+			return f.Sender.Send(editUpdatedMsg)
+		}
+	}
+	// 4. No id match and the fallback gate blocked any rewrite.
+	return f.Sender.Send(editMissMsg)
+}
+
+// newestCompletedSlug returns the slug whose newest answers.yaml entry is the
+// most recent — comparing CompletedAt, falling back to ScheduledFor, parsed as
+// RFC3339. Returns "" when no questionnaire has a stored entry. A timestamp that
+// fails to parse is skipped rather than aborting the edit.
+func (f *QuestionFlow) newestCompletedSlug() (string, error) {
+	var newest string
+	var newestAt time.Time
+	for slug := range f.Questionnaires {
+		entry, err := storage.LastEntry(f.DataDir, slug)
+		if err != nil {
+			return "", err
+		}
+		if entry == nil {
+			continue
+		}
+		ts := entry.CompletedAt
+		if ts == "" {
+			ts = entry.ScheduledFor
+		}
+		at, err := time.Parse(time.RFC3339, ts)
+		if err != nil {
+			continue
+		}
+		if newest == "" || at.After(newestAt) {
+			newest = slug
+			newestAt = at
+		}
+	}
+	return newest, nil
+}
+
 func (f *QuestionFlow) finalize(slug string, s *session.Session, q *loader.Questionnaire) error {
 	scheduled, err := time.Parse(time.RFC3339, s.ScheduledFor)
 	if err != nil {
