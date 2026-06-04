@@ -81,21 +81,21 @@ func TestQuestionFlowFullCycle(t *testing.T) {
 		t.Fatalf("Q1 send = %v / %v", sender.msgs, sender.markdown)
 	}
 
-	if err := flow.HandleAnswer("daily", "A1"); err != nil {
+	if err := flow.HandleAnswer("daily", "A1", 201); err != nil {
 		t.Fatalf("HandleAnswer 1: %v", err)
 	}
 	if len(sender.markdown) != 1 || !strings.Contains(sender.markdown[0], "_Example: Ex2_") {
 		t.Fatalf("Q2 markdown = %v", sender.markdown)
 	}
 
-	if err := flow.HandleAnswer("daily", "A2"); err != nil {
+	if err := flow.HandleAnswer("daily", "A2", 202); err != nil {
 		t.Fatalf("HandleAnswer 2: %v", err)
 	}
 	if len(sender.msgs) != 2 || sender.msgs[1] != "Q3?" {
 		t.Fatalf("Q3 send = %v", sender.msgs)
 	}
 
-	if err := flow.HandleAnswer("daily", "A3"); err != nil {
+	if err := flow.HandleAnswer("daily", "A3", 203); err != nil {
 		t.Fatalf("HandleAnswer 3: %v", err)
 	}
 	if len(sender.msgs) != 3 || !strings.Contains(sender.msgs[2], "✅ Daily complete!") {
@@ -118,9 +118,13 @@ func TestQuestionFlowFullCycle(t *testing.T) {
 		t.Fatalf("entries = %+v", entries)
 	}
 	wantAnswers := []string{"A1", "A2", "A3"}
+	wantIDs := []int{201, 202, 203}
 	for i, want := range wantAnswers {
 		if entries[0].Answers[i].Answer != want {
 			t.Errorf("answers[%d] = %q, want %q", i, entries[0].Answers[i].Answer, want)
+		}
+		if entries[0].Answers[i].MessageID != wantIDs[i] {
+			t.Errorf("answers[%d].MessageID = %d, want %d", i, entries[0].Answers[i].MessageID, wantIDs[i])
 		}
 	}
 }
@@ -141,7 +145,7 @@ func TestFinalizeIfDoneOrphan(t *testing.T) {
 	if _, err := sessions.Start("x", t0, t0, loc); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	if err := sessions.RecordAnswer("x", "Q1?", "A1"); err != nil {
+	if err := sessions.RecordAnswer("x", "Q1?", "A1", 0); err != nil {
 		t.Fatalf("RecordAnswer: %v", err)
 	}
 	// Now CurrentQuestionIndex == 1 == len(questions). Crash-resume scenario.

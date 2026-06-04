@@ -54,7 +54,7 @@ func (d *Dispatcher) Handle(_ context.Context, sender bot.Sender, update tgbotap
 		d.handleCommand(sender, update.Message.Command())
 		return
 	}
-	d.handleFreeText(sender, update.Message.Text)
+	d.handleFreeText(sender, update.Message.Text, update.Message.MessageID)
 }
 
 func (d *Dispatcher) handleCallback(sender bot.Sender, cb *tgbotapi.CallbackQuery) {
@@ -103,13 +103,13 @@ func (d *Dispatcher) handleCommand(sender bot.Sender, cmd string) {
 	}
 }
 
-func (d *Dispatcher) handleFreeText(sender bot.Sender, text string) {
+func (d *Dispatcher) handleFreeText(sender bot.Sender, text string, messageID int) {
 	active := d.activeSlugs()
 	switch len(active) {
 	case 0:
 		send(sender, HelpText)
 	case 1:
-		if err := d.Flow.HandleAnswer(active[0], text); err != nil {
+		if err := d.Flow.HandleAnswer(active[0], text, messageID); err != nil {
 			log.Printf("handler: HandleAnswer(%s): %v", active[0], err)
 		}
 	default:

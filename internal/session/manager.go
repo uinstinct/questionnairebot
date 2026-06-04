@@ -64,17 +64,58 @@ func (m *Manager) Get(slug string) *Session {
 	return cloneSession(s)
 }
 
-// RecordAnswer appends an answer to the active session for slug and persists.
-func (m *Manager) RecordAnswer(slug, question, answer string) error {
+// RecordAnswer appends an answer (with the user's Telegram message id) to the
+// active session for slug and persists.
+func (m *Manager) RecordAnswer(slug, question, answer string, messageID int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s, ok := m.sessions[slug]
 	if !ok {
 		return fmt.Errorf("session: no active session for %q", slug)
 	}
-	s.Answers = append(s.Answers, AnswerPair{Question: question, Answer: answer})
+	s.Answers = append(s.Answers, AnswerPair{Question: question, Answer: answer, MessageID: messageID})
 	s.CurrentQuestionIndex++
 	return m.saveLocked(slug)
+}
+
+// UpdateAnswerByMessageID rewrites the active session's answer whose MessageID ==
+// messageID, persisting under the lock. Returns (false, nil) when no session
+// exists for slug, messageID is 0, or no answer carries that id. Mutates the
+// stored *Session directly — never a Get() clone.
+func (m *Manager) UpdateAnswerByMessageID(slug string, messageID int, newText string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.sessions[slug]
+	if !ok || messageID == 0 {
+		return false, nil
+	}
+	for i := range s.Answers {
+		if s.Answers[i].MessageID == messageID {
+			s.Answers[i].Answer = newText
+			return true, m.saveLocked(slug)
+		}
+	}
+	return false, nil
+}
+
+// UpdateLastAnswer rewrites the active session's last answer — but ONLY when that
+// answer is legacy data with no stored message id (MessageID == 0). A last answer
+// that already carries a real id is left untouched (the LOCKED safety gate).
+// Returns (false, nil) when no session exists, it has no answers, or the gate
+// blocks the rewrite. Persists under the lock, mutating the stored *Session.
+func (m *Manager) UpdateLastAnswer(slug string, newText string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.sessions[slug]
+	if !ok || len(s.Answers) == 0 {
+		return false, nil
+	}
+	last := len(s.Answers) - 1
+	if s.Answers[last].MessageID != 0 {
+		return false, nil
+	}
+	s.Answers[last].Answer = newText
+	return true, m.saveLocked(slug)
 }
 
 // Delete removes the active session for slug from memory and disk.

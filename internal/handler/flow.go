@@ -73,7 +73,7 @@ func (f *QuestionFlow) SendQuestion(slug string, idx int) error {
 
 // HandleAnswer records the user's reply to the current question and either
 // sends the next question or finalises the session.
-func (f *QuestionFlow) HandleAnswer(slug, text string) error {
+func (f *QuestionFlow) HandleAnswer(slug, text string, messageID int) error {
 	q, ok := f.Questionnaires[slug]
 	if !ok {
 		return fmt.Errorf("handler: unknown questionnaire %q", slug)
@@ -86,7 +86,7 @@ func (f *QuestionFlow) HandleAnswer(slug, text string) error {
 		return errors.New("handler: session already complete")
 	}
 	current := q.Questions[s.CurrentQuestionIndex]
-	if err := f.Sessions.RecordAnswer(slug, current.Question, text); err != nil {
+	if err := f.Sessions.RecordAnswer(slug, current.Question, text, messageID); err != nil {
 		return err
 	}
 	s = f.Sessions.Get(slug)

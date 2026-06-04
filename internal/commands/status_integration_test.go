@@ -54,7 +54,7 @@ func TestStatusReportsAllQuestionnaireStates(t *testing.T) {
 	// Seed inprogress_q via the session manager (writes session.yaml under the lock).
 	_, err = sessions.Start("inprogress_q", now, now, utc)
 	require.NoError(t, err)
-	require.NoError(t, sessions.RecordAnswer("inprogress_q", "Q?", "partial"))
+	require.NoError(t, sessions.RecordAnswer("inprogress_q", "Q?", "partial", 0))
 
 	// pending_q has no answers and no session.
 
