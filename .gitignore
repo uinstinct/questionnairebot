@@ -2,3 +2,5 @@
 .env
 data/*
 !data/.gitkeep
+codedb.snapshot
+.agents/
