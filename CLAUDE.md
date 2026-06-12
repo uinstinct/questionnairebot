@@ -15,7 +15,7 @@ routines so the user only needs to answer, not manage. Zero answer data loss acr
 
 ### Constraints
 
-- **Tech stack**: Go 1.22+ — chosen by user; matches PRD Dockerfile builder stage
+- **Tech stack**: Go 1.25+ — `go.mod` declares `go 1.25.0` (required by the OpenTelemetry v1.44 modules); the Dockerfile builder stage is `golang:1.25-alpine`
 - **Persistence**: YAML files on disk only — no database, per PRD non-goals
 - **Concurrency**: Single Telegram chat ID; multi-questionnaire scheduler; mutex-protected session state
 - **Deployment**: Docker / docker-compose only — must run on a standard VPS
