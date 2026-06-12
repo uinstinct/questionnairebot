@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -38,9 +39,9 @@ func TestStatusStates(t *testing.T) {
 	sessions := session.NewManager(dir)
 	loc := time.UTC
 	qs := map[string]*loader.Questionnaire{
-		"a-active":    {Slug: "a-active", Name: "Active", Schedule: "0 9 * * *", Timezone: "UTC", Location: loc, Questions: []loader.Question{{Question: "Q?"}}},
-		"b-done":      {Slug: "b-done", Name: "Done", Schedule: "0 9 * * *", Timezone: "UTC", Location: loc, Questions: []loader.Question{{Question: "Q?"}}},
-		"c-pending":   {Slug: "c-pending", Name: "Pending", Schedule: "0 9 * * *", Timezone: "UTC", Location: loc, Questions: []loader.Question{{Question: "Q?"}}},
+		"a-active":  {Slug: "a-active", Name: "Active", Schedule: "0 9 * * *", Timezone: "UTC", Location: loc, Questions: []loader.Question{{Question: "Q?"}}},
+		"b-done":    {Slug: "b-done", Name: "Done", Schedule: "0 9 * * *", Timezone: "UTC", Location: loc, Questions: []loader.Question{{Question: "Q?"}}},
+		"c-pending": {Slug: "c-pending", Name: "Pending", Schedule: "0 9 * * *", Timezone: "UTC", Location: loc, Questions: []loader.Question{{Question: "Q?"}}},
 	}
 	now := time.Date(2026, 5, 18, 12, 0, 0, 0, loc)
 	// Active session.
@@ -48,7 +49,7 @@ func TestStatusStates(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 	// Completed entry for b-done.
-	if err := storage.PrependCompleted(dir, "b-done", now.Add(-3*time.Hour), now.Add(-2*time.Hour), loc, nil); err != nil {
+	if err := storage.PrependCompleted(context.Background(), dir, "b-done", now.Add(-3*time.Hour), now.Add(-2*time.Hour), loc, nil); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 

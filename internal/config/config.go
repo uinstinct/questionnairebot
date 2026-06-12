@@ -17,6 +17,15 @@ type Config struct {
 	BotToken string
 	ChatID   int64
 	DataDir  string
+
+	// ServiceName is the OpenTelemetry service.name resource attribute. Defaults
+	// to "questionnairebot"; OTEL_SERVICE_NAME (or OTEL_RESOURCE_ATTRIBUTES) wins
+	// via resource.WithFromEnv when telemetry is enabled.
+	ServiceName string
+	// TelemetryEnabled is true when any OTLP endpoint env var is set. When false,
+	// telemetry.Setup installs no providers and the bot behaves identically to a
+	// build without telemetry.
+	TelemetryEnabled bool
 }
 
 // Load reads configuration from the environment (and an optional .env file),
@@ -54,9 +63,29 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("DATA_DIR %q is not a directory", dataDir)
 	}
 
+	serviceName := strings.TrimSpace(os.Getenv("OTEL_SERVICE_NAME"))
+	if serviceName == "" {
+		serviceName = "questionnairebot"
+	}
+
+	telemetryEnabled := false
+	for _, key := range []string{
+		"OTEL_EXPORTER_OTLP_ENDPOINT",
+		"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+		"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+		"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+	} {
+		if strings.TrimSpace(os.Getenv(key)) != "" {
+			telemetryEnabled = true
+			break
+		}
+	}
+
 	return &Config{
-		BotToken: token,
-		ChatID:   chatID,
-		DataDir:  dataDir,
+		BotToken:         token,
+		ChatID:           chatID,
+		DataDir:          dataDir,
+		ServiceName:      serviceName,
+		TelemetryEnabled: telemetryEnabled,
 	}, nil
 }

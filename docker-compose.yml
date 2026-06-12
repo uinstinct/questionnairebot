@@ -1,6 +1,10 @@
 services:
   bot:
     build: .
+    # All variables in .env are passed through to the container, including the
+    # optional OTEL_* telemetry vars (see .env.example). No extra config needed:
+    # set OTEL_EXPORTER_OTLP_ENDPOINT in .env to opt into telemetry, or leave the
+    # OTEL_* vars unset to keep it disabled.
     env_file: .env
     volumes:
       - ./data:/app/data

@@ -9,19 +9,38 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/aditya-mitra/questionnairebot/internal/telemetry"
 )
 
+// recordErr marks span as failed when err is non-nil. Centralises the span
+// error/status ceremony so every storage func wraps its body the same way.
+func recordErr(span trace.Span, err error) error {
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return err
+}
+
 // PrependCompleted writes a "completed" entry to the head of data/<slug>/answers.yaml.
-func PrependCompleted(dataDir, slug string, scheduled, completed time.Time, loc *time.Location, answers []AnswerPair) error {
+func PrependCompleted(ctx context.Context, dataDir, slug string, scheduled, completed time.Time, loc *time.Location, answers []AnswerPair) error {
+	ctx, span := telemetry.Tracer().Start(ctx, "storage.prependCompleted",
+		trace.WithAttributes(attribute.String("questionnaire.slug", slug)))
+	defer span.End()
 	if loc == nil {
-		return errors.New("storage: loc is required")
+		return recordErr(span, errors.New("storage: loc is required"))
 	}
 	entry := Entry{
 		Status:       "completed",
@@ -29,35 +48,41 @@ func PrependCompleted(dataDir, slug string, scheduled, completed time.Time, loc 
 		CompletedAt:  completed.In(loc).Format(time.RFC3339),
 		Answers:      answers,
 	}
-	return prepend(answersPath(dataDir, slug), entry)
+	return recordErr(span, prepend(ctx, answersPath(dataDir, slug), entry))
 }
 
 // PrependSkipped writes a "skipped" entry to the head of data/<slug>/answers.yaml.
-func PrependSkipped(dataDir, slug string, scheduled, skipped time.Time, loc *time.Location) error {
+func PrependSkipped(ctx context.Context, dataDir, slug string, scheduled, skipped time.Time, loc *time.Location) error {
+	ctx, span := telemetry.Tracer().Start(ctx, "storage.prependSkipped",
+		trace.WithAttributes(attribute.String("questionnaire.slug", slug)))
+	defer span.End()
 	if loc == nil {
-		return errors.New("storage: loc is required")
+		return recordErr(span, errors.New("storage: loc is required"))
 	}
 	entry := Entry{
 		Status:       "skipped",
 		ScheduledFor: scheduled.In(loc).Format(time.RFC3339),
 		SkippedAt:    skipped.In(loc).Format(time.RFC3339),
 	}
-	return prepend(answersPath(dataDir, slug), entry)
+	return recordErr(span, prepend(ctx, answersPath(dataDir, slug), entry))
 }
 
 // LastEntry returns the most recent entry from data/<slug>/answers.yaml,
 // or nil if the file does not yet exist or contains no entries.
-func LastEntry(dataDir, slug string) (*Entry, error) {
+func LastEntry(ctx context.Context, dataDir, slug string) (*Entry, error) {
+	_, span := telemetry.Tracer().Start(ctx, "storage.lastEntry",
+		trace.WithAttributes(attribute.String("questionnaire.slug", slug)))
+	defer span.End()
 	raw, err := os.ReadFile(answersPath(dataDir, slug))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, recordErr(span, err)
 	}
 	var entries []Entry
 	if err := yaml.Unmarshal(raw, &entries); err != nil {
-		return nil, fmt.Errorf("decode answers.yaml: %w", err)
+		return nil, recordErr(span, fmt.Errorf("decode answers.yaml: %w", err))
 	}
 	if len(entries) == 0 {
 		return nil, nil
@@ -70,11 +95,14 @@ func LastEntry(dataDir, slug string) (*Entry, error) {
 // matched=false (no error) when messageID is 0, the file is absent, or no answer
 // carries that id. Telegram message ids are always > 0, so messageID == 0 is
 // rejected up front and can never match a legacy (id-less) answer.
-func UpdateAnswerByMessageID(dataDir, slug string, messageID int, newText string) (matched bool, err error) {
+func UpdateAnswerByMessageID(ctx context.Context, dataDir, slug string, messageID int, newText string) (matched bool, err error) {
+	ctx, span := telemetry.Tracer().Start(ctx, "storage.updateAnswerByMessageID",
+		trace.WithAttributes(attribute.String("questionnaire.slug", slug)))
+	defer span.End()
 	if messageID == 0 {
 		return false, nil
 	}
-	return updateEntries(dataDir, slug, func(entries []Entry) bool {
+	return updateEntries(ctx, dataDir, slug, func(entries []Entry) bool {
 		for i := range entries {
 			for j := range entries[i].Answers {
 				if entries[i].Answers[j].MessageID == messageID {
@@ -95,8 +123,11 @@ func UpdateAnswerByMessageID(dataDir, slug string, messageID int, newText string
 // can never clobber a genuine answer. It is NOT an unconditional last-answer
 // setter. Returns (false, nil) when the file is absent, has no entries, or
 // entries[0] has no answers.
-func UpdateLastAnswer(dataDir, slug string, newText string) (matched bool, err error) {
-	return updateEntries(dataDir, slug, func(entries []Entry) bool {
+func UpdateLastAnswer(ctx context.Context, dataDir, slug string, newText string) (matched bool, err error) {
+	ctx, span := telemetry.Tracer().Start(ctx, "storage.updateLastAnswer",
+		trace.WithAttributes(attribute.String("questionnaire.slug", slug)))
+	defer span.End()
+	return updateEntries(ctx, dataDir, slug, func(entries []Entry) bool {
 		if len(entries) == 0 || len(entries[0].Answers) == 0 {
 			return false
 		}
@@ -114,7 +145,11 @@ func UpdateLastAnswer(dataDir, slug string, newText string) (matched bool, err e
 // document and write it atomically via the same temp-file + fsync + rename
 // ceremony as prepend (full re-marshal, not prepend's byte-concatenation). A
 // missing file is reported as (false, nil).
-func updateEntries(dataDir, slug string, mutate func(entries []Entry) bool) (bool, error) {
+func updateEntries(ctx context.Context, dataDir, slug string, mutate func(entries []Entry) bool) (matched bool, err error) {
+	_, span := telemetry.Tracer().Start(ctx, "storage.updateEntries",
+		trace.WithAttributes(attribute.String("questionnaire.slug", slug)))
+	defer span.End()
+	defer func() { _ = recordErr(span, err) }()
 	path := answersPath(dataDir, slug)
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -169,7 +204,10 @@ func answersPath(dataDir, slug string) string {
 	return filepath.Join(dataDir, slug, "answers.yaml")
 }
 
-func prepend(path string, e Entry) error {
+func prepend(ctx context.Context, path string, e Entry) (err error) {
+	_, span := telemetry.Tracer().Start(ctx, "storage.prepend")
+	defer span.End()
+	defer func() { _ = recordErr(span, err) }()
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)

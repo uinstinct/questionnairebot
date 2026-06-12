@@ -42,6 +42,24 @@ func waitForFlush(bus *CronBus) {
 	time.Sleep(bus.Window + 50*time.Millisecond)
 }
 
+// waitFor polls cond until it returns true or ~2s elapses, returning cond's
+// final value. Tests asserting a positive flush outcome use this instead of a
+// fixed sleep so they never race the background flush goroutine — a fixed wait
+// can read the recorder while flush is mid-flight (session already started but
+// the question not yet sent).
+func waitFor(cond func() bool) bool {
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if cond() {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func TestCronSingleFireStartsSession(t *testing.T) {
 	bus, sender, sessions, _ := setupBus(t, []*loader.Questionnaire{dailyQ()})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -49,7 +67,12 @@ func TestCronSingleFireStartsSession(t *testing.T) {
 	go bus.Run(ctx)
 
 	bus.Fire("daily", time.Date(2026, 5, 18, 9, 0, 0, 0, time.UTC))
-	waitForFlush(bus)
+	if !waitFor(func() bool {
+		msgs, _, _ := sender.snapshot()
+		return len(msgs) >= 1
+	}) {
+		t.Fatalf("first question never sent")
+	}
 
 	if sessions.Get("daily") == nil {
 		t.Fatalf("session not started")
@@ -67,7 +90,7 @@ func TestCronAlreadyCompletedSilent(t *testing.T) {
 	bus, sender, sessions, dir := setupBus(t, []*loader.Questionnaire{dailyQ()})
 	t0 := time.Date(2026, 5, 18, 9, 0, 0, 0, time.UTC)
 	// Pre-seed answers.yaml with a completed entry matching the fire time.
-	if err := storage.PrependCompleted(dir, "daily", t0, t0.Add(15*time.Minute), time.UTC, nil); err != nil {
+	if err := storage.PrependCompleted(context.Background(), dir, "daily", t0, t0.Add(15*time.Minute), time.UTC, nil); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
@@ -96,7 +119,12 @@ func TestCronMultiFirePicker(t *testing.T) {
 	t0 := time.Date(2026, 5, 18, 9, 0, 0, 0, time.UTC)
 	bus.Fire("daily", t0)
 	bus.Fire("weekly", t0)
-	waitForFlush(bus)
+	if !waitFor(func() bool {
+		_, _, pickers := sender.snapshot()
+		return len(pickers) >= 1
+	}) {
+		t.Fatalf("picker never sent")
+	}
 
 	if sessions.Get("daily") != nil || sessions.Get("weekly") != nil {
 		t.Errorf("no session should auto-start in multi-fire case")

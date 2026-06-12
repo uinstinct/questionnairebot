@@ -3,6 +3,7 @@
 package handler_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sync"
@@ -90,7 +91,7 @@ func TestRestoreResumesFromMidSession(t *testing.T) {
 	// Recording an answer (as the dispatcher would on free text) must send Q2 (index 1),
 	// not Q1 (index 0). HandleAnswer sends the *next* question after recording, so seed
 	// a SendQuestion at the restored index to mimic what the dispatcher does first.
-	require.NoError(t, flow.SendQuestion("daily", loaded.CurrentQuestionIndex))
+	require.NoError(t, flow.SendQuestion(context.Background(), "daily", loaded.CurrentQuestionIndex))
 
 	all := sender.all()
 	require.NotEmpty(t, all, "restore must surface the question at the resumed index")

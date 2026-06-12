@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"sort"
 	"strings"
 	"time"
@@ -28,13 +29,16 @@ func NewStatus(dataDir string, sessions *session.Manager, qs map[string]*loader.
 
 // Render returns the /status message body.
 func (s *Status) Render() string {
+	// /status is rendered via the string-returning dispatcher path, which has no
+	// ctx in scope; these reads are idempotent so a background context is fine.
+	ctx := context.Background()
 	slugs := sortedSlugs(s.Questionnaires)
 	var b strings.Builder
 	b.WriteString("📊 Status:\n")
 	now := s.Clock()
 	for _, slug := range slugs {
 		q := s.Questionnaires[slug]
-		last, _ := storage.LastEntry(s.DataDir, slug)
+		last, _ := storage.LastEntry(ctx, s.DataDir, slug)
 		lastFmt := "Never"
 		if last != nil {
 			when := last.CompletedAt
