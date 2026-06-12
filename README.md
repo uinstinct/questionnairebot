@@ -23,6 +23,36 @@ questionnaire in its declared IANA timezone, and starts long-polling Telegram.
 | `TELEGRAM_CHAT_ID` | yes | Numeric chat id of the single authorised user; all other chats are silently dropped |
 | `DATA_DIR` | no | Path containing questionnaire subdirectories; defaults to `./data` (set to `/app/data` inside the Docker image) |
 
+## OpenTelemetry / Observability
+
+Telemetry is **opt-in and disabled by default**. When no OTLP endpoint is
+configured, the bot installs no-op providers — its behavior, logs, and network
+activity are identical to a build without telemetry. Setting an OTLP endpoint
+enables:
+
+- **Traces** — `questionnaire.fire → flow.* → storage.*` and
+  `telegram.update → flow.*`, so a single questionnaire can be followed from cron
+  tick to persisted `answers.yaml`.
+- **Metrics** — questionnaires-fired counter, answers-recorded counter,
+  active-sessions observable gauge, and an errors counter.
+- **Logs** — existing `log.Printf` output is also exported through the OTel logs
+  SDK while still printing to stderr. (Per-line trace correlation is a documented
+  follow-up; exported log records do not yet carry a trace id.)
+
+All export is OTLP, configured via the standard `OTEL_*` environment variables.
+Leave them unset to keep telemetry off.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | no | OTLP collector endpoint. Setting this (or any signal-specific endpoint below) **enables** telemetry |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `_METRICS_ENDPOINT` / `_LOGS_ENDPOINT` | no | Per-signal endpoint overrides; any one of them also enables telemetry |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | no | `grpc` (default) or `http/protobuf` |
+| `OTEL_SERVICE_NAME` | no | Service name in exported data; defaults to `questionnairebot` |
+| `OTEL_RESOURCE_ATTRIBUTES` | no | Comma-separated `key=value` resource attributes (e.g. `deployment.environment=prod`) |
+
+If the collector is unreachable, exporters retry/drop in the background — the
+question flow never blocks on export, and providers flush on shutdown.
+
 ## Commands
 
 - `/pull` — picker of pending questionnaires (skips past-due cycles first)

@@ -3,6 +3,7 @@
 package commands_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sync"
@@ -63,7 +64,7 @@ func TestPullSkipsPastDueAndSurfacesNextUpcoming(t *testing.T) {
 	now := time.Date(2026, 5, 18, 10, 0, 0, 0, loc)
 	baseline := now.Add(-25 * time.Minute) // 09:35
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "fivemin"), 0o755))
-	require.NoError(t, storage.PrependCompleted(tmp, "fivemin", baseline, baseline, loc,
+	require.NoError(t, storage.PrependCompleted(context.Background(), tmp, "fivemin", baseline, baseline, loc,
 		[]storage.AnswerPair{{Question: "How was it?", Answer: "ok"}}))
 
 	sessions := session.NewManager(tmp)
@@ -71,7 +72,7 @@ func TestPullSkipsPastDueAndSurfacesNextUpcoming(t *testing.T) {
 	pull := commands.NewPull(flow, func() time.Time { return now })
 
 	sender := &pullSender{}
-	require.NoError(t, pull.Handle(sender))
+	require.NoError(t, pull.Handle(context.Background(), sender))
 
 	// Read answers.yaml; expect 5 skipped entries prepended (newest first), then completed.
 	raw, err := os.ReadFile(filepath.Join(tmp, "fivemin", "answers.yaml"))

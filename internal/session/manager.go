@@ -53,6 +53,15 @@ func (m *Manager) Start(slug string, scheduled, started time.Time, loc *time.Loc
 	return cloneSession(s), nil
 }
 
+// Len returns the number of active in-memory sessions. It is read by the
+// active-sessions metric callback on a different goroutine; the mutex makes that
+// safe against concurrent Start/Delete.
+func (m *Manager) Len() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.sessions)
+}
+
 // Get returns a copy of the active session for slug, or nil if none exists.
 func (m *Manager) Get(slug string) *Session {
 	m.mu.Lock()

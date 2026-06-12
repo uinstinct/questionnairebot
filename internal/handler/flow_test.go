@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,28 +75,28 @@ func TestQuestionFlowFullCycle(t *testing.T) {
 	flow := New(sender, sessions, tmp, []*loader.Questionnaire{q})
 	flow.Now = func() time.Time { return now }
 
-	if err := flow.StartQuestionnaire("daily", now); err != nil {
+	if err := flow.StartQuestionnaire(context.Background(), "daily", now); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	if len(sender.msgs) != 1 || sender.msgs[0] != "Q1?" {
 		t.Fatalf("Q1 send = %v / %v", sender.msgs, sender.markdown)
 	}
 
-	if err := flow.HandleAnswer("daily", "A1", 201); err != nil {
+	if err := flow.HandleAnswer(context.Background(), "daily", "A1", 201); err != nil {
 		t.Fatalf("HandleAnswer 1: %v", err)
 	}
 	if len(sender.markdown) != 1 || !strings.Contains(sender.markdown[0], "_Example: Ex2_") {
 		t.Fatalf("Q2 markdown = %v", sender.markdown)
 	}
 
-	if err := flow.HandleAnswer("daily", "A2", 202); err != nil {
+	if err := flow.HandleAnswer(context.Background(), "daily", "A2", 202); err != nil {
 		t.Fatalf("HandleAnswer 2: %v", err)
 	}
 	if len(sender.msgs) != 2 || sender.msgs[1] != "Q3?" {
 		t.Fatalf("Q3 send = %v", sender.msgs)
 	}
 
-	if err := flow.HandleAnswer("daily", "A3", 203); err != nil {
+	if err := flow.HandleAnswer(context.Background(), "daily", "A3", 203); err != nil {
 		t.Fatalf("HandleAnswer 3: %v", err)
 	}
 	if len(sender.msgs) != 3 || !strings.Contains(sender.msgs[2], "✅ Daily complete!") {
@@ -149,7 +150,7 @@ func TestFinalizeIfDoneOrphan(t *testing.T) {
 		t.Fatalf("RecordAnswer: %v", err)
 	}
 	// Now CurrentQuestionIndex == 1 == len(questions). Crash-resume scenario.
-	done, err := flow.FinalizeIfDone("x")
+	done, err := flow.FinalizeIfDone(context.Background(), "x")
 	if err != nil || !done {
 		t.Fatalf("FinalizeIfDone = (%v, %v)", done, err)
 	}
@@ -165,7 +166,7 @@ func seedCompletedFlow(t *testing.T, dir, slug string, answers []storage.AnswerP
 	t.Helper()
 	loc := time.UTC
 	t0 := time.Date(2026, 5, 18, 9, 0, 0, 0, loc)
-	if err := storage.PrependCompleted(dir, slug, t0, t0.Add(15*time.Minute), loc, answers); err != nil {
+	if err := storage.PrependCompleted(context.Background(), dir, slug, t0, t0.Add(15*time.Minute), loc, answers); err != nil {
 		t.Fatalf("PrependCompleted: %v", err)
 	}
 }
@@ -213,7 +214,7 @@ func TestHandleEditedAnswerActiveSessionMatch(t *testing.T) {
 		t.Fatalf("RecordAnswer 2: %v", err)
 	}
 
-	if err := flow.HandleEditedAnswer(20, "edited A2"); err != nil {
+	if err := flow.HandleEditedAnswer(context.Background(), 20, "edited A2"); err != nil {
 		t.Fatalf("HandleEditedAnswer: %v", err)
 	}
 	got := sessions.Get("daily")
@@ -240,7 +241,7 @@ func TestHandleEditedAnswerCompletedMatch(t *testing.T) {
 		{Question: "Q2?", Answer: "B2", MessageID: 41},
 	})
 
-	if err := flow.HandleEditedAnswer(40, "edited B1"); err != nil {
+	if err := flow.HandleEditedAnswer(context.Background(), 40, "edited B1"); err != nil {
 		t.Fatalf("HandleEditedAnswer: %v", err)
 	}
 	entries := readFlowEntries(t, tmp, "daily")
@@ -275,7 +276,7 @@ func TestHandleEditedAnswerLegacyFallback(t *testing.T) {
 		{Question: "Q2?", Answer: "legacy"},
 	})
 
-	if err := flow.HandleEditedAnswer(9999, "corrected"); err != nil {
+	if err := flow.HandleEditedAnswer(context.Background(), 9999, "corrected"); err != nil {
 		t.Fatalf("HandleEditedAnswer: %v", err)
 	}
 	entries := readFlowEntries(t, tmp, "daily")
@@ -301,7 +302,7 @@ func TestHandleEditedAnswerSafetyGate(t *testing.T) {
 	// Most-recent candidate already has a real message_id -> never clobbered.
 	seedCompletedFlow(t, tmp, "daily", []storage.AnswerPair{{Question: "Q1?", Answer: "real", MessageID: 60}})
 
-	if err := flow.HandleEditedAnswer(9999, "should-not-apply"); err != nil {
+	if err := flow.HandleEditedAnswer(context.Background(), 9999, "should-not-apply"); err != nil {
 		t.Fatalf("HandleEditedAnswer: %v", err)
 	}
 	entries := readFlowEntries(t, tmp, "daily")

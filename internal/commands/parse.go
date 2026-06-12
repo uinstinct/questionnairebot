@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -39,7 +40,7 @@ func NextTrigger(q *loader.Questionnaire, after time.Time) (time.Time, error) {
 // entry, or now-1year for fresh files) and `now`, prepending a `skipped` entry
 // for each unanswered tick. Returns the number of skips prepended (clamped at
 // maxPastDueSkips).
-func ApplyPastDueSkips(dataDir string, q *loader.Questionnaire, now time.Time, clock func() time.Time) (int, error) {
+func ApplyPastDueSkips(ctx context.Context, dataDir string, q *loader.Questionnaire, now time.Time, clock func() time.Time) (int, error) {
 	if clock == nil {
 		clock = time.Now
 	}
@@ -47,7 +48,7 @@ func ApplyPastDueSkips(dataDir string, q *loader.Questionnaire, now time.Time, c
 	if err != nil {
 		return 0, err
 	}
-	last, err := storage.LastEntry(dataDir, q.Slug)
+	last, err := storage.LastEntry(ctx, dataDir, q.Slug)
 	if err != nil {
 		return 0, fmt.Errorf("commands: last entry: %w", err)
 	}
@@ -66,7 +67,7 @@ func ApplyPastDueSkips(dataDir string, q *loader.Questionnaire, now time.Time, c
 	count := 0
 	tick := sched.Next(baseline)
 	for tick.Before(nowLocal) && count < maxPastDueSkips {
-		if err := storage.PrependSkipped(dataDir, q.Slug, tick, clock(), q.Location); err != nil {
+		if err := storage.PrependSkipped(ctx, dataDir, q.Slug, tick, clock(), q.Location); err != nil {
 			return count, fmt.Errorf("commands: prepend skipped: %w", err)
 		}
 		count++

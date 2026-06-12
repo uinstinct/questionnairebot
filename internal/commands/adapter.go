@@ -1,6 +1,10 @@
 package commands
 
-import "github.com/aditya-mitra/questionnairebot/internal/bot"
+import (
+	"context"
+
+	"github.com/aditya-mitra/questionnairebot/internal/bot"
+)
 
 // Adapter bundles the four per-slash-command handlers into the
 // handler.CommandHandler shape without forcing internal/handler to import
@@ -17,8 +21,8 @@ func NewAdapter(p *Pull, s *Status, l *List) *Adapter {
 }
 
 // HandlePull dispatches the /pull slash-command to the underlying handler.
-func (a *Adapter) HandlePull(sender bot.Sender) error {
-	return a.Pull.Handle(sender)
+func (a *Adapter) HandlePull(ctx context.Context, sender bot.Sender) error {
+	return a.Pull.Handle(ctx, sender)
 }
 
 // RenderStatus returns the /status message body.
@@ -32,6 +36,6 @@ func (a *Adapter) RenderList() string {
 }
 
 // HandleStartCallback dispatches an inline-keyboard "start:" callback to /pull.
-func (a *Adapter) HandleStartCallback(sender bot.Sender, data string) error {
-	return a.Pull.HandleCallback(sender, data)
+func (a *Adapter) HandleStartCallback(ctx context.Context, sender bot.Sender, data string) error {
+	return a.Pull.HandleCallback(ctx, sender, data)
 }

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"log"
 )
@@ -18,7 +19,7 @@ func Restore(flow *QuestionFlow) error {
 			continue
 		}
 		if s.CurrentQuestionIndex >= len(q.Questions) {
-			if _, err := flow.FinalizeIfDone(slug); err != nil {
+			if _, err := flow.FinalizeIfDone(context.Background(), slug); err != nil {
 				return fmt.Errorf("finalize orphan %s: %w", slug, err)
 			}
 			log.Printf("Finalised orphan session: %s", slug)

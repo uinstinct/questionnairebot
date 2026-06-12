@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,10 +20,10 @@ func TestPrependPreservesOrder(t *testing.T) {
 	}
 
 	t0 := time.Date(2026, 5, 18, 9, 0, 0, 0, loc)
-	if err := PrependCompleted(dir, slug, t0, t0.Add(15*time.Minute), loc, []AnswerPair{{Question: "Q1?", Answer: "A1"}}); err != nil {
+	if err := PrependCompleted(context.Background(), dir, slug, t0, t0.Add(15*time.Minute), loc, []AnswerPair{{Question: "Q1?", Answer: "A1"}}); err != nil {
 		t.Fatalf("PrependCompleted: %v", err)
 	}
-	if err := PrependSkipped(dir, slug, t0.Add(-24*time.Hour), t0, loc); err != nil {
+	if err := PrependSkipped(context.Background(), dir, slug, t0.Add(-24*time.Hour), t0, loc); err != nil {
 		t.Fatalf("PrependSkipped: %v", err)
 	}
 
@@ -44,7 +45,7 @@ func TestPrependPreservesOrder(t *testing.T) {
 		t.Errorf("entry[1].Status = %q, want completed", entries[1].Status)
 	}
 
-	last, err := LastEntry(dir, slug)
+	last, err := LastEntry(context.Background(), dir, slug)
 	if err != nil {
 		t.Fatalf("LastEntry: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestPrependPreservesOrder(t *testing.T) {
 		t.Errorf("LastEntry status = %v, want skipped", last)
 	}
 
-	missing, err := LastEntry(dir, "no-such-slug")
+	missing, err := LastEntry(context.Background(), dir, "no-such-slug")
 	if err != nil {
 		t.Errorf("LastEntry missing: %v", err)
 	}
@@ -66,7 +67,7 @@ func TestPrependMany(t *testing.T) {
 	loc := time.UTC
 	t0 := time.Now().In(loc)
 	for i := 0; i < 100; i++ {
-		if err := PrependCompleted(dir, "x", t0.Add(time.Duration(i)*time.Hour), t0.Add(time.Duration(i)*time.Hour+time.Minute), loc, nil); err != nil {
+		if err := PrependCompleted(context.Background(), dir, "x", t0.Add(time.Duration(i)*time.Hour), t0.Add(time.Duration(i)*time.Hour+time.Minute), loc, nil); err != nil {
 			t.Fatalf("PrependCompleted %d: %v", i, err)
 		}
 	}
@@ -84,7 +85,7 @@ func seedCompleted(t *testing.T, dir, slug string, answers []AnswerPair) {
 	t.Helper()
 	loc := time.UTC
 	t0 := time.Date(2026, 5, 18, 9, 0, 0, 0, loc)
-	if err := PrependCompleted(dir, slug, t0, t0.Add(15*time.Minute), loc, answers); err != nil {
+	if err := PrependCompleted(context.Background(), dir, slug, t0, t0.Add(15*time.Minute), loc, answers); err != nil {
 		t.Fatalf("PrependCompleted: %v", err)
 	}
 }
@@ -114,7 +115,7 @@ func TestUpdateAnswerByMessageIDMatch(t *testing.T) {
 		{Question: "Q2?", Answer: "B2", MessageID: 21},
 	})
 
-	matched, err := UpdateAnswerByMessageID(dir, "daily", 11, "edited A2")
+	matched, err := UpdateAnswerByMessageID(context.Background(), dir, "daily", 11, "edited A2")
 	if err != nil {
 		t.Fatalf("UpdateAnswerByMessageID: %v", err)
 	}
@@ -156,7 +157,7 @@ func TestUpdateAnswerByMessageIDNoMatch(t *testing.T) {
 		t.Fatalf("read: %v", err)
 	}
 
-	matched, err := UpdateAnswerByMessageID(dir, "daily", 999, "nope")
+	matched, err := UpdateAnswerByMessageID(context.Background(), dir, "daily", 999, "nope")
 	if err != nil {
 		t.Fatalf("UpdateAnswerByMessageID: %v", err)
 	}
@@ -174,7 +175,7 @@ func TestUpdateAnswerByMessageIDNoMatch(t *testing.T) {
 
 func TestUpdateAnswerByMessageIDMissingFile(t *testing.T) {
 	dir := t.TempDir()
-	matched, err := UpdateAnswerByMessageID(dir, "missing", 10, "x")
+	matched, err := UpdateAnswerByMessageID(context.Background(), dir, "missing", 10, "x")
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -192,7 +193,7 @@ func TestUpdateAnswerByMessageIDZeroNeverMatches(t *testing.T) {
 		t.Fatalf("read: %v", err)
 	}
 
-	matched, err := UpdateAnswerByMessageID(dir, "daily", 0, "clobber")
+	matched, err := UpdateAnswerByMessageID(context.Background(), dir, "daily", 0, "clobber")
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -214,7 +215,7 @@ func TestUpdateLastAnswerLegacyRewrites(t *testing.T) {
 		{Question: "Q2?", Answer: "legacy"},
 	})
 
-	matched, err := UpdateLastAnswer(dir, "daily", "corrected")
+	matched, err := UpdateLastAnswer(context.Background(), dir, "daily", "corrected")
 	if err != nil {
 		t.Fatalf("UpdateLastAnswer: %v", err)
 	}
@@ -243,7 +244,7 @@ func TestUpdateLastAnswerRealIDGated(t *testing.T) {
 		t.Fatalf("read: %v", err)
 	}
 
-	matched, err := UpdateLastAnswer(dir, "daily", "should-not-apply")
+	matched, err := UpdateLastAnswer(context.Background(), dir, "daily", "should-not-apply")
 	if err != nil {
 		t.Fatalf("UpdateLastAnswer: %v", err)
 	}
@@ -259,7 +260,7 @@ func TestUpdateLastAnswerRealIDGated(t *testing.T) {
 func TestUpdateLastAnswerEdgeCases(t *testing.T) {
 	// Missing file.
 	dir := t.TempDir()
-	if matched, err := UpdateLastAnswer(dir, "missing", "x"); err != nil || matched {
+	if matched, err := UpdateLastAnswer(context.Background(), dir, "missing", "x"); err != nil || matched {
 		t.Fatalf("missing file = (%v, %v), want (false, nil)", matched, err)
 	}
 
@@ -271,7 +272,7 @@ func TestUpdateLastAnswerEdgeCases(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(emptyDir, "daily", "answers.yaml"), []byte("[]\n"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if matched, err := UpdateLastAnswer(emptyDir, "daily", "x"); err != nil || matched {
+	if matched, err := UpdateLastAnswer(context.Background(), emptyDir, "daily", "x"); err != nil || matched {
 		t.Fatalf("empty entries = (%v, %v), want (false, nil)", matched, err)
 	}
 
@@ -279,10 +280,10 @@ func TestUpdateLastAnswerEdgeCases(t *testing.T) {
 	skipDir := t.TempDir()
 	loc := time.UTC
 	t0 := time.Date(2026, 5, 18, 9, 0, 0, 0, loc)
-	if err := PrependSkipped(skipDir, "daily", t0, t0, loc); err != nil {
+	if err := PrependSkipped(context.Background(), skipDir, "daily", t0, t0, loc); err != nil {
 		t.Fatalf("PrependSkipped: %v", err)
 	}
-	if matched, err := UpdateLastAnswer(skipDir, "daily", "x"); err != nil || matched {
+	if matched, err := UpdateLastAnswer(context.Background(), skipDir, "daily", "x"); err != nil || matched {
 		t.Fatalf("entries[0] no answers = (%v, %v), want (false, nil)", matched, err)
 	}
 }
@@ -309,7 +310,7 @@ func TestLegacyRoundTripOmitsMessageID(t *testing.T) {
 		}
 	}
 	// A full re-marshal through the edit core must not emit "message_id: 0".
-	matched, err := UpdateLastAnswer(dir, "daily", "corrected")
+	matched, err := UpdateLastAnswer(context.Background(), dir, "daily", "corrected")
 	if err != nil || !matched {
 		t.Fatalf("UpdateLastAnswer = (%v, %v), want (true, nil)", matched, err)
 	}

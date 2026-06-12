@@ -6,9 +6,13 @@ import (
 	"log"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/aditya-mitra/questionnairebot/internal/bot"
 	"github.com/aditya-mitra/questionnairebot/internal/handler"
 	"github.com/aditya-mitra/questionnairebot/internal/storage"
+	"github.com/aditya-mitra/questionnairebot/internal/telemetry"
 )
 
 // PickerSender is satisfied by *bot.Bot and by test recorders.
@@ -75,7 +79,7 @@ func (b *CronBus) Run(ctx context.Context) {
 				timerC = timer.C
 			}
 		case <-timerC:
-			b.flush(pending)
+			b.flush(ctx, pending)
 			pending = nil
 			timer = nil
 			timerC = nil
@@ -83,7 +87,7 @@ func (b *CronBus) Run(ctx context.Context) {
 	}
 }
 
-func (b *CronBus) flush(events []fireEvent) {
+func (b *CronBus) flush(ctx context.Context, events []fireEvent) {
 	filtered := make([]fireEvent, 0, len(events))
 	for _, ev := range events {
 		q, ok := b.Flow.Questionnaires[ev.slug]
@@ -93,7 +97,7 @@ func (b *CronBus) flush(events []fireEvent) {
 		if b.Flow.Sessions.Get(ev.slug) != nil {
 			continue
 		}
-		last, err := storage.LastEntry(b.Flow.DataDir, ev.slug)
+		last, err := storage.LastEntry(ctx, b.Flow.DataDir, ev.slug)
 		if err == nil && last != nil && last.Status == "completed" {
 			whenFmt := ev.when.In(q.Location).Format(time.RFC3339)
 			if last.ScheduledFor == whenFmt {
@@ -108,9 +112,14 @@ func (b *CronBus) flush(events []fireEvent) {
 		return
 	case 1:
 		ev := filtered[0]
-		if err := b.Flow.StartQuestionnaire(ev.slug, ev.when); err != nil {
+		ctx, span := telemetry.Tracer().Start(ctx, "questionnaire.fire",
+			trace.WithAttributes(attribute.String("questionnaire.slug", ev.slug)))
+		telemetry.RecordFired(ctx, ev.slug)
+		if err := b.Flow.StartQuestionnaire(ctx, ev.slug, ev.when); err != nil {
+			telemetry.RecordError(ctx, "fire")
 			log.Printf("commands: start questionnaire %s: %v", ev.slug, err)
 		}
+		span.End()
 	default:
 		opts := make([]PickerOption, 0, len(filtered))
 		for _, ev := range filtered {

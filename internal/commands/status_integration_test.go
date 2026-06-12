@@ -3,6 +3,7 @@
 package commands_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -47,7 +48,7 @@ func TestStatusReportsAllQuestionnaireStates(t *testing.T) {
 
 	// Seed done_q with a completed entry in its tz.
 	completedAt := now.Add(-3 * time.Hour)
-	require.NoError(t, storage.PrependCompleted(dir, "done_q",
+	require.NoError(t, storage.PrependCompleted(context.Background(), dir, "done_q",
 		completedAt, completedAt, kolkata,
 		[]storage.AnswerPair{{Question: "Q?", Answer: "yes"}}))
 

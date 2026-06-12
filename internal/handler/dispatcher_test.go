@@ -99,24 +99,24 @@ func TestDispatcherFreeTextNoSession(t *testing.T) {
 }
 
 type fakeCommands struct {
-	pullCalled    bool
-	pullErr       error
-	statusText    string
-	listText      string
-	cbData        string
-	cbErr         error
+	pullCalled bool
+	pullErr    error
+	statusText string
+	listText   string
+	cbData     string
+	cbErr      error
 }
 
-func (f *fakeCommands) HandlePull(sender bot.Sender) error {
+func (f *fakeCommands) HandlePull(_ context.Context, sender bot.Sender) error {
 	f.pullCalled = true
 	if f.pullErr != nil {
 		return f.pullErr
 	}
 	return sender.Send("pull ok")
 }
-func (f *fakeCommands) RenderStatus() string                                { return f.statusText }
-func (f *fakeCommands) RenderList() string                                  { return f.listText }
-func (f *fakeCommands) HandleStartCallback(sender bot.Sender, data string) error {
+func (f *fakeCommands) RenderStatus() string { return f.statusText }
+func (f *fakeCommands) RenderList() string   { return f.listText }
+func (f *fakeCommands) HandleStartCallback(_ context.Context, sender bot.Sender, data string) error {
 	f.cbData = data
 	if f.cbErr != nil {
 		return f.cbErr
@@ -174,7 +174,7 @@ func TestDispatcherFreeTextActiveSession(t *testing.T) {
 	d := NewDispatcher(flow)
 
 	now := flow.Now()
-	if err := flow.StartQuestionnaire("x", now); err != nil {
+	if err := flow.StartQuestionnaire(context.Background(), "x", now); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	if len(sender.msgs) != 1 || sender.msgs[0] != "Q1?" {

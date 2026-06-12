@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -28,7 +29,7 @@ func TestPullActiveSession(t *testing.T) {
 	if _, err := sessions.Start("daily", now, now, time.UTC); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	if err := pull.Handle(sender); err != nil {
+	if err := pull.Handle(context.Background(), sender); err != nil {
 		t.Fatalf("Handle: %v", err)
 	}
 	if len(sender.msgs) != 1 || sender.msgs[0] != ReplyActiveSession {
@@ -41,10 +42,10 @@ func TestPullAllUpToDate(t *testing.T) {
 	pull, sender, _, dir := setupPull(t, []*loader.Questionnaire{dailyQ()}, now)
 	// Pre-seed: the most recent completed entry matches today's 9am cycle.
 	t0 := time.Date(2026, 5, 18, 9, 0, 0, 0, time.UTC)
-	if err := storage.PrependCompleted(dir, "daily", t0, t0.Add(15*time.Minute), time.UTC, nil); err != nil {
+	if err := storage.PrependCompleted(context.Background(), dir, "daily", t0, t0.Add(15*time.Minute), time.UTC, nil); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	if err := pull.Handle(sender); err != nil {
+	if err := pull.Handle(context.Background(), sender); err != nil {
 		t.Fatalf("Handle: %v", err)
 	}
 	// Next trigger after now=12:00 is tomorrow 9:00 (not yet completed).
@@ -53,11 +54,11 @@ func TestPullAllUpToDate(t *testing.T) {
 	// match a completed entry. Easier: pre-seed completed entry for tomorrow's
 	// cycle, simulating a fast-forward where the next cycle is already done.
 	tomorrow := time.Date(2026, 5, 19, 9, 0, 0, 0, time.UTC)
-	if err := storage.PrependCompleted(dir, "daily", tomorrow, tomorrow.Add(15*time.Minute), time.UTC, nil); err != nil {
+	if err := storage.PrependCompleted(context.Background(), dir, "daily", tomorrow, tomorrow.Add(15*time.Minute), time.UTC, nil); err != nil {
 		t.Fatalf("seed-future: %v", err)
 	}
 	sender.msgs = nil
-	if err := pull.Handle(sender); err != nil {
+	if err := pull.Handle(context.Background(), sender); err != nil {
 		t.Fatalf("Handle: %v", err)
 	}
 	if len(sender.msgs) != 1 || sender.msgs[0] != ReplyAllUpToDate {
@@ -72,13 +73,13 @@ func TestPullPastDueAddsSkipsAndShowsPicker(t *testing.T) {
 	// skips prepended for the 16th, 17th, and 18th (9:00 each), then next-upcoming
 	// is the 19th 09:00.
 	baseline := time.Date(2026, 5, 15, 9, 0, 0, 0, time.UTC)
-	if err := storage.PrependCompleted(dir, "daily", baseline, baseline.Add(15*time.Minute), time.UTC, nil); err != nil {
+	if err := storage.PrependCompleted(context.Background(), dir, "daily", baseline, baseline.Add(15*time.Minute), time.UTC, nil); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	if err := pull.Handle(sender); err != nil {
+	if err := pull.Handle(context.Background(), sender); err != nil {
 		t.Fatalf("Handle: %v", err)
 	}
-	last, err := storage.LastEntry(dir, "daily")
+	last, err := storage.LastEntry(context.Background(), dir, "daily")
 	if err != nil {
 		t.Fatalf("LastEntry: %v", err)
 	}
@@ -98,7 +99,7 @@ func TestPullCallbackStartsSession(t *testing.T) {
 	pull, sender, sessions, _ := setupPull(t, []*loader.Questionnaire{dailyQ()}, now)
 	tomorrow := time.Date(2026, 5, 19, 9, 0, 0, 0, time.UTC)
 	cbData := "start:daily:" + tomorrow.UTC().Format(time.RFC3339)
-	if err := pull.HandleCallback(sender, cbData); err != nil {
+	if err := pull.HandleCallback(context.Background(), sender, cbData); err != nil {
 		t.Fatalf("HandleCallback: %v", err)
 	}
 	if sessions.Get("daily") == nil {
@@ -112,7 +113,7 @@ func TestPullCallbackStartsSession(t *testing.T) {
 func TestPullCallbackMalformed(t *testing.T) {
 	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
 	pull, sender, _, _ := setupPull(t, []*loader.Questionnaire{dailyQ()}, now)
-	if err := pull.HandleCallback(sender, "bogus"); err != nil {
+	if err := pull.HandleCallback(context.Background(), sender, "bogus"); err != nil {
 		t.Fatalf("HandleCallback: %v", err)
 	}
 	if len(sender.msgs) != 1 || sender.msgs[0] != ReplyBadCallback {

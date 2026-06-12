@@ -17,6 +17,7 @@ import (
 	"github.com/aditya-mitra/questionnairebot/internal/loader"
 	"github.com/aditya-mitra/questionnairebot/internal/scheduler"
 	"github.com/aditya-mitra/questionnairebot/internal/session"
+	"github.com/aditya-mitra/questionnairebot/internal/telemetry"
 )
 
 func main() {
@@ -26,12 +27,25 @@ func main() {
 	}
 	log.Printf("Loaded configuration: chat_id=%d data_dir=%s", cfg.ChatID, cfg.DataDir)
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Opt-in telemetry: when no OTLP endpoint is configured this is a no-op and
+	// the bot behaves identically. Setup failures are downgraded to a WARN + a
+	// no-op shutdown so telemetry can never block startup.
+	shutdownTel, err := telemetry.Setup(ctx, cfg)
+	if err != nil {
+		log.Printf("WARN: telemetry setup: %v", err)
+		shutdownTel = func(context.Context) error { return nil }
+	}
+
 	questionnaires, err := loader.Load(cfg.DataDir)
 	if err != nil {
 		fatal(err)
 	}
 
 	sessions := session.NewManager(cfg.DataDir)
+	telemetry.SetActiveSessionsSource(func() int64 { return int64(sessions.Len()) })
 	flow := handler.New(nil, sessions, cfg.DataDir, questionnaires)
 	disp := handler.NewDispatcher(flow)
 
@@ -44,9 +58,6 @@ func main() {
 	if err := handler.Restore(flow); err != nil {
 		fatal(err)
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	bus := commands.NewCronBus(flow, b, time.Now)
 	go bus.Run(ctx)
@@ -70,6 +81,12 @@ func main() {
 
 	<-ctx.Done()
 	sched.Stop()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := shutdownTel(shutdownCtx); err != nil {
+		log.Printf("WARN: telemetry shutdown: %v", err)
+	}
 	log.Println("shutdown complete")
 }
 

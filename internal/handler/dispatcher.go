@@ -6,8 +6,10 @@ import (
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/aditya-mitra/questionnairebot/internal/bot"
+	"github.com/aditya-mitra/questionnairebot/internal/telemetry"
 )
 
 // HelpText is the default response for /start, /help, and unrecognised input.
@@ -17,10 +19,10 @@ const HelpText = "Send /pull to start a questionnaire now, /status for state, or
 // avoids importing internal/commands directly (which already depends on
 // handler, so a back-import would create a cycle).
 type CommandHandler interface {
-	HandlePull(sender bot.Sender) error
+	HandlePull(ctx context.Context, sender bot.Sender) error
 	RenderStatus() string
 	RenderList() string
-	HandleStartCallback(sender bot.Sender, data string) error
+	HandleStartCallback(ctx context.Context, sender bot.Sender, data string) error
 }
 
 // Dispatcher routes Telegram updates to slash-command handlers or the
@@ -42,37 +44,44 @@ func (d *Dispatcher) Attach(cmds CommandHandler) {
 }
 
 // Handle routes one Telegram update — callback, slash-command, or free text.
-func (d *Dispatcher) Handle(_ context.Context, sender bot.Sender, update tgbotapi.Update) {
+func (d *Dispatcher) Handle(ctx context.Context, sender bot.Sender, update tgbotapi.Update) {
+	ctx, span := telemetry.Tracer().Start(ctx, "telegram.update")
+	defer span.End()
 	if update.CallbackQuery != nil {
-		d.handleCallback(sender, update.CallbackQuery)
+		span.SetAttributes(attribute.String("update.type", "callback"))
+		d.handleCallback(ctx, sender, update.CallbackQuery)
 		return
 	}
 	if update.EditedMessage != nil {
-		d.handleEditedMessage(sender, update.EditedMessage)
+		span.SetAttributes(attribute.String("update.type", "edited"))
+		d.handleEditedMessage(ctx, sender, update.EditedMessage)
 		return
 	}
 	if update.Message == nil {
 		return
 	}
 	if update.Message.IsCommand() {
-		d.handleCommand(sender, update.Message.Command())
+		span.SetAttributes(attribute.String("update.type", "command"))
+		d.handleCommand(ctx, sender, update.Message.Command())
 		return
 	}
-	d.handleFreeText(sender, update.Message.Text, update.Message.MessageID)
+	span.SetAttributes(attribute.String("update.type", "text"))
+	d.handleFreeText(ctx, sender, update.Message.Text, update.Message.MessageID)
 }
 
-func (d *Dispatcher) handleEditedMessage(sender bot.Sender, msg *tgbotapi.Message) {
+func (d *Dispatcher) handleEditedMessage(ctx context.Context, _ bot.Sender, msg *tgbotapi.Message) {
 	// Caption/media edits carry Caption (not Text); edited commands are not
 	// answers. Ignore both so neither can trigger an answer rewrite.
 	if msg.Text == "" || msg.IsCommand() {
 		return
 	}
-	if err := d.Flow.HandleEditedAnswer(msg.MessageID, msg.Text); err != nil {
+	if err := d.Flow.HandleEditedAnswer(ctx, msg.MessageID, msg.Text); err != nil {
+		telemetry.RecordError(ctx, "edited_answer")
 		log.Printf("handler: HandleEditedAnswer(%d): %v", msg.MessageID, err)
 	}
 }
 
-func (d *Dispatcher) handleCallback(sender bot.Sender, cb *tgbotapi.CallbackQuery) {
+func (d *Dispatcher) handleCallback(ctx context.Context, sender bot.Sender, cb *tgbotapi.CallbackQuery) {
 	if err := sender.AckCallback(cb.ID); err != nil {
 		log.Printf("handler: ack callback: %v", err)
 	}
@@ -84,12 +93,13 @@ func (d *Dispatcher) handleCallback(sender bot.Sender, cb *tgbotapi.CallbackQuer
 		send(sender, "❌ Invalid selection.")
 		return
 	}
-	if err := d.Commands.HandleStartCallback(sender, cb.Data); err != nil {
+	if err := d.Commands.HandleStartCallback(ctx, sender, cb.Data); err != nil {
+		telemetry.RecordError(ctx, "callback_start")
 		log.Printf("handler: callback start: %v", err)
 	}
 }
 
-func (d *Dispatcher) handleCommand(sender bot.Sender, cmd string) {
+func (d *Dispatcher) handleCommand(ctx context.Context, sender bot.Sender, cmd string) {
 	switch cmd {
 	case "start", "help":
 		send(sender, HelpText)
@@ -98,7 +108,8 @@ func (d *Dispatcher) handleCommand(sender bot.Sender, cmd string) {
 			send(sender, "Phase 4 will implement /pull.")
 			return
 		}
-		if err := d.Commands.HandlePull(sender); err != nil {
+		if err := d.Commands.HandlePull(ctx, sender); err != nil {
+			telemetry.RecordError(ctx, "pull")
 			log.Printf("handler: /pull: %v", err)
 		}
 	case "status":
@@ -118,13 +129,14 @@ func (d *Dispatcher) handleCommand(sender bot.Sender, cmd string) {
 	}
 }
 
-func (d *Dispatcher) handleFreeText(sender bot.Sender, text string, messageID int) {
+func (d *Dispatcher) handleFreeText(ctx context.Context, sender bot.Sender, text string, messageID int) {
 	active := d.activeSlugs()
 	switch len(active) {
 	case 0:
 		send(sender, HelpText)
 	case 1:
-		if err := d.Flow.HandleAnswer(active[0], text, messageID); err != nil {
+		if err := d.Flow.HandleAnswer(ctx, active[0], text, messageID); err != nil {
+			telemetry.RecordError(ctx, "answer")
 			log.Printf("handler: HandleAnswer(%s): %v", active[0], err)
 		}
 	default:
